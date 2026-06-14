@@ -1,0 +1,6 @@
+{
+  "name": "SajiloBiz",
+  "description": "A modern, minimalist business management platform and operating system for Nepali SMEs. Simplify billing, stock, bookkeeping, and customer due tracking with Bikram Sambat support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
