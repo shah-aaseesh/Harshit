@@ -6,7 +6,7 @@ import {
   UserPlus, ShoppingCart, DollarSign, Frown, Sparkles, Ban, FileDown,
   Info, QrCode, X
 } from 'lucide-react';
-import { formatBSDate, getTodayBS } from '../utils/nepaliCalendar';
+import { formatBSDate, getTodayBS, getFiscalYear, FISCAL_YEAR_OPTIONS } from '../utils/nepaliCalendar';
 
 export const Billing: React.FC = () => {
   const { 
@@ -69,11 +69,14 @@ export const Billing: React.FC = () => {
   );
 
   // Quick invoice logs filters
-  const filteredInvoices = invoices.filter(inv => 
-    inv.invoiceNo.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) ||
-    inv.customerName.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) ||
-    (inv.customerPhone && inv.customerPhone.includes(invoiceSearchQuery))
-  );
+  const [invoiceFiscalYear, setInvoiceFiscalYear] = useState<string>('All');
+  const filteredInvoices = invoices.filter(inv => {
+    const matchesSearch = inv.invoiceNo.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) ||
+      inv.customerName.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) ||
+      (inv.customerPhone && inv.customerPhone.includes(invoiceSearchQuery));
+    const matchesFY = invoiceFiscalYear === 'All' || getFiscalYear(inv.bsDate) === invoiceFiscalYear;
+    return matchesSearch && matchesFY;
+  });
 
   // Handlers for cart customization
   const addToCart = (product: Product) => {
@@ -1297,7 +1300,7 @@ export const Billing: React.FC = () => {
       ) : (
         /* HISTORICAL REGISTER LOGS */
         <div className="space-y-4" id="invoice-register-list">
-          <div className="flex flex-col sm:flex-row justify-between gap-3 bg-white p-4 rounded-xl border border-gray-100" id="history-search-row">
+          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-4 rounded-xl border border-gray-100" id="history-search-row">
             <div className="relative flex-1" id="history-search-bar">
               <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-gray-400" />
               <input
@@ -1308,6 +1311,21 @@ export const Billing: React.FC = () => {
                 placeholder="Search processed invoices by customer name, registration numbers, or statuses..."
                 className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 text-xs outline-none focus:ring-1 focus:ring-blue-500"
               />
+            </div>
+
+            {/* Fiscal Year Filter Selector */}
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-150 rounded-lg px-2.5 py-1.5 text-xs" id="invoice-history-fy-wrapper">
+              <span className="text-gray-400 font-bold select-none">FY:</span>
+              <select
+                id="select-invoice-history-fy"
+                value={invoiceFiscalYear}
+                onChange={(e) => setInvoiceFiscalYear(e.target.value)}
+                className="bg-transparent font-extrabold text-gray-800 outline-none cursor-pointer"
+              >
+                {FISCAL_YEAR_OPTIONS.map(fy => (
+                  <option key={fy} value={fy}>{fy === 'All' ? 'All Fiscal Years' : `FY ${fy}`}</option>
+                ))}
+              </select>
             </div>
           </div>
 

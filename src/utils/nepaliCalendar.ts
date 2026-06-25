@@ -130,6 +130,35 @@ export function convertADtoBS(dateInput: Date | string): string {
 }
 
 /**
+ * Converts Bikram Sambat YYYY-MM-DD back to standard JavaScript Date
+ */
+export function convertBStoAD(bsDateString: string): Date {
+  if (!bsDateString || !bsDateString.includes('-')) return new Date();
+  const parts = bsDateString.split('-');
+  const year = parseInt(parts[0]);
+  const month = parseInt(parts[1]);
+  const day = parseInt(parts[2]);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return new Date();
+
+  const yearData = BS_CALENDAR_DATA[year];
+  if (!yearData) {
+    // Basic approximate offset of 56.7 years
+    const estYear = year - 57;
+    return new Date(`${estYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`);
+  }
+
+  const baisakh1 = new Date(yearData.adStart);
+  let totalDaysOffset = 0;
+  for (let m = 0; m < month - 1; m++) {
+    totalDaysOffset += yearData.monthsDays[m];
+  }
+  totalDaysOffset += (day - 1);
+
+  const adDate = new Date(baisakh1.getTime() + totalDaysOffset * 24 * 60 * 60 * 1000);
+  return adDate;
+}
+
+/**
  * Strips YYYY-MM-DD string into formatted readable string like "Jestha 5, 2083" or "वैशाख १०, २०८१"
  */
 export function formatBSDate(bsDateString: string, nepaliScript = false): string {
@@ -162,3 +191,28 @@ export function formatBSDate(bsDateString: string, nepaliScript = false): string
 export function getTodayBS(): string {
   return convertADtoBS(new Date());
 }
+
+/**
+ * Get Fiscal Year for a given BS Date (YYYY-MM-DD)
+ * In Nepal, Fiscal Year starts from Shrawan 1 (Month 4) and ends on Ashadh last (Month 3 of the next year).
+ * E.g. 2080-04-01 is in FY 2080/81.
+ * E.g. 2081-03-30 is in FY 2080/81.
+ */
+export function getFiscalYear(bsDateString: string): string {
+  if (!bsDateString || !bsDateString.includes('-')) return '';
+  const parts = bsDateString.split('-');
+  const year = parseInt(parts[0]);
+  const month = parseInt(parts[1]);
+  if (isNaN(year) || isNaN(month)) return '';
+  
+  if (month >= 4) {
+    const nextYearShort = (year + 1) % 100;
+    return `${year}/${nextYearShort.toString().padStart(2, '0')}`;
+  } else {
+    const prevYear = year - 1;
+    const currentYearShort = year % 100;
+    return `${prevYear}/${currentYearShort.toString().padStart(2, '0')}`;
+  }
+}
+
+export const FISCAL_YEAR_OPTIONS = ['All', '2079/80', '2080/81', '2081/82', '2082/83', '2083/84', '2084/85'];

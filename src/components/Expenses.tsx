@@ -5,13 +5,14 @@ import {
   DollarSign, Plus, Eye, Calendar, Tag, CreditCard, HelpCircle, 
   Trash2, Filter, Receipt, ChevronRight, TrendingDown
 } from 'lucide-react';
-import { formatBSDate, getTodayBS } from '../utils/nepaliCalendar';
+import { formatBSDate, getTodayBS, getFiscalYear, FISCAL_YEAR_OPTIONS } from '../utils/nepaliCalendar';
 
 export const Expenses: React.FC = () => {
   const { expenses, submitExpense, currentUserRole, setExpenses } = useApp();
 
   // Search/Filters states
   const [filterCategory, setFilterCategory] = useState<string>('All');
+  const [filterFiscalYear, setFilterFiscalYear] = useState<string>('All');
   const [expenseTitle, setExpenseTitle] = useState<string>('');
   const [expenseAmount, setExpenseAmount] = useState<number>(0);
   const [expenseCategory, setExpenseCategory] = useState<Expense['category']>('Utilities');
@@ -28,7 +29,8 @@ export const Expenses: React.FC = () => {
 
   const filteredExpenses = expenses.filter(exp => {
     const matchesCategory = filterCategory === 'All' || exp.category === filterCategory;
-    return matchesCategory;
+    const matchesFY = filterFiscalYear === 'All' || getFiscalYear(exp.bsDate) === filterFiscalYear;
+    return matchesCategory && matchesFY;
   });
 
   const totalFilteredSum = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -110,20 +112,37 @@ export const Expenses: React.FC = () => {
 
       {/* Categories operations bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-xl border border-gray-100 shadow-xxs" id="expenses-ops">
-        <div className="flex items-center gap-2" id="expenses-category-picker">
-          <Filter className="h-3.5 w-3.5 text-gray-400" />
-          <span className="text-xs font-semibold text-gray-650">Sector Category Filter:</span>
-          <select
-            id="filter-expense-category-select"
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="text-xs border border-gray-200 rounded-lg p-2 outline-none bg-white"
-          >
-            <option value="All">All Categories</option>
-            {CATEGORIES.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-4" id="expenses-category-picker">
+          <div className="flex items-center gap-2">
+            <Filter className="h-3.5 w-3.5 text-gray-400" />
+            <span className="text-xs font-semibold text-gray-650">Sector Category Filter:</span>
+            <select
+              id="filter-expense-category-select"
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg p-2 outline-none bg-white font-medium text-gray-700"
+            >
+              <option value="All">All Categories</option>
+              {CATEGORIES.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Calendar className="h-3.5 w-3.5 text-gray-400" />
+            <span className="text-xs font-semibold text-gray-650">Fiscal Year:</span>
+            <select
+              id="filter-expense-fy-select"
+              value={filterFiscalYear}
+              onChange={(e) => setFilterFiscalYear(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg p-2 outline-none bg-white font-extrabold text-gray-800"
+            >
+              {FISCAL_YEAR_OPTIONS.map(fy => (
+                <option key={fy} value={fy}>{fy === 'All' ? 'All Fiscal Years' : `FY ${fy}`}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

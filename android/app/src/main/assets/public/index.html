@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>SajiloBiz Operating System</title>
+    
+    <!-- PWA primary configuration -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#2563eb" />
+    
+    <!-- iOS support headers for elegant App launch -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SajiloBiz" />
+    <link rel="apple-touch-icon" href="/logo.svg" />
+    
+    <!-- Service Worker registration script -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((reg) => console.log('[SajiloBiz] Service worker successfully registered:', reg.scope))
+            .catch((err) => console.error('[SajiloBiz] Service worker registration failed:', err));
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-C1O7wk_g.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DxdSeM92.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+

@@ -69,230 +69,212 @@ const SajiloAppContent: React.FC = () => {
   const unreadNotifCount = notifications.filter(n => !n.isRead).length;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans selection:bg-blue-600 selection:text-white" id="sajilobiz-app-shell">
+    <div className="min-h-screen bg-transparent flex flex-col md:flex-row md:h-screen md:overflow-hidden font-sans selection:bg-blue-600 selection:text-white" id="sajilobiz-app-shell">
       
-      {/* GLOBAL TOP NAV BAR BAR */}
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-150 px-4 py-3 flex justify-between items-center shadow-xxs shrink-0" id="global-header-bar">
-        
-        {/* Mobile Header Toggle burger */}
-        <div className="flex items-center gap-3" id="global-header-left">
-          <button
-            id="btn-mobile-hamburger"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-1.5 hover:bg-gray-100 rounded-lg text-gray-500"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-
-          {/* Logo brand */}
-          <div className="flex items-center gap-2" id="brand-logo-panel">
-            <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-sm shadow-sm" id="brand-icon">
+      {/* SIDE BAR LAYOUT FOR DESKTOPS - Beautiful floating glass dock */}
+      <aside className="hidden md:flex flex-col justify-between w-64 sidebar-glass m-3 mr-0 rounded-2xl p-5 shrink-0 shadow-lg shadow-gray-200/40 max-h-[calc(100vh-24px)]" id="desktop-sidebar">
+        <div className="space-y-6 overflow-y-auto flex-1 pr-1 min-h-0" id="sidebar-top">
+          
+          {/* Brand Panel inside Sidebar */}
+          <div className="flex items-center gap-3 border-b border-gray-150/50 pb-4" id="brand-logo-panel">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-lg shadow-md shadow-blue-500/20" id="brand-icon">
               S
             </div>
             <div>
-              <h1 className="text-sm font-black text-gray-900 tracking-tight leading-none uppercase">
+              <h1 className="text-xs font-black text-gray-900 tracking-tight leading-none uppercase font-display">
                 {businessConfig.name}
               </h1>
-              <span className="text-[10px] text-gray-400 font-sans block mt-0.5" id="nepali-brand-caption">सजिलोबिज • Operating System</span>
+              <span className="text-[9px] text-gray-400 font-sans font-semibold block mt-1" id="nepali-brand-caption">Operating Desk</span>
+            </div>
+          </div>
+
+          <div className="space-y-2" id="nav-group-title">
+            <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-widest block px-2.5 font-display">Corporate Operations</span>
+            <div className="space-y-1" id="sidebar-tabs-list">
+              {allowedTabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    id={`sidebar-link-${tab.id}`}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs text-left transition duration-150 active:scale-[0.98] ${
+                      activeTab === tab.id 
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' 
+                        : 'text-gray-550 hover:bg-gray-100/50 hover:text-gray-900'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="tracking-tight">{tab.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Quick Helper keys */}
+          <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-150/40 text-[10px] text-gray-405 font-mono space-y-1.5" id="shortcut-helper-keys">
+            <span className="text-gray-600 font-bold block pb-1 border-b border-gray-150/45">POS Terminal Keys:</span>
+            <div className="flex justify-between items-center">
+              <span>Quick Billing</span>
+              <kbd className="bg-white px-1.5 py-0.5 border border-gray-200 rounded text-gray-700 shadow-2xs font-extrabold text-[9px]">F2</kbd>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Command Palette</span>
+              <kbd className="bg-white px-1.5 py-0.5 border border-gray-200 rounded text-gray-700 shadow-2xs font-extrabold text-[9px]">/</kbd>
             </div>
           </div>
         </div>
 
-        {/* Universal controls: command trigger, notification, profile switcher */}
-        <div className="flex items-center gap-3" id="global-header-right">
-          
-          {/* Mock Spotlight Search button */}
-          <button
-            id="btn-trigger-search-palette"
-            onClick={() => setPaletteOpen(true)}
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-150 hover:border-gray-300 rounded-lg text-xs text-gray-400 transition cursor-pointer select-none"
-          >
-            <Search className="h-3.5 w-3.5" />
-            <span>Search or command (/)...</span>
-          </button>
+        {/* Sidebar current credentials footer */}
+        <div className="border-t border-gray-150/50 pt-4" id="sidebar-bottom">
+          <div className="flex items-center gap-3 text-xs" id="sidebar-footer-credentials">
+            <div className="h-8.5 w-8.5 bg-gray-50 border border-gray-150/50 rounded-xl flex items-center justify-center text-gray-500 shadow-2xs">
+              <Terminal className="h-4 w-4" />
+            </div>
+            <div>
+              <span className="font-extrabold text-gray-800 block leading-none font-display">BS Calendar:</span>
+              <span className="text-[10px] text-emerald-600 block mt-1 font-bold">{formatBSDate(getTodayBS()).split(',')[0]}</span>
+            </div>
+          </div>
+        </div>
+      </aside>
 
-          {/* Notifications Alerts bell */}
-          <div className="relative" id="notifications-bell-container">
+      {/* RIGHT WORKSPACE WORKBENCH AREA */}
+      <div className="flex-1 flex flex-col md:overflow-hidden p-3 min-h-0" id="workspace-workbench">
+        
+        {/* GLOBAL TOP NAV BAR - Nested inside the right workbench */}
+        <header className="glass-panel rounded-2xl px-4 py-2.5 flex justify-between items-center shadow-xs shrink-0 mb-3" id="global-header-bar">
+          
+          {/* Mobile Header Toggle burger & Title */}
+          <div className="flex items-center gap-3" id="global-header-left">
             <button
-              id="btn-toggle-notifications-dropdown"
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition"
+              id="btn-mobile-hamburger"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-1.5 hover:bg-gray-100 rounded-lg text-gray-500"
             >
-              <Bell className="h-5 w-5" />
-              {unreadNotifCount > 0 && (
-                <span className="absolute top-1 right-1 h-3.5 w-3.5 bg-rose-500 text-white font-mono font-bold text-[8px] rounded-full flex items-center justify-center animate-bounce">
-                  {unreadNotifCount}
-                </span>
-              )}
+              <Menu className="h-5 w-5" />
             </button>
 
-            {/* Notification alert lists window popover */}
-            {showNotifications && (
-              <div className="absolute right-0 mt-2.5 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-3.5 space-y-3" id="notifications-popover">
-                <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-                  <span className="font-bold text-xs text-gray-900">Sajilo Notifications ({unreadNotifCount})</span>
-                  <button 
-                    id="btn-close-notif-dropdown"
-                    onClick={() => setShowNotifications(false)} 
-                    className="text-[10px] text-gray-400 hover:text-gray-600"
-                  >
-                    Close
-                  </button>
-                </div>
-
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-1" id="notifications-drop-list">
-                  {notifications.length === 0 ? (
-                    <p className="text-center py-6 text-gray-400 text-[11px]">No alerts triggered.</p>
-                  ) : (
-                    notifications.map((n) => (
-                      <div 
-                        key={n.id}
-                        id={`notif-drop-item-${n.id}`}
-                        onClick={() => markNotificationRead(n.id)}
-                        className={`p-2.5 rounded-lg border text-[10px] block cursor-pointer transition ${
-                          n.isRead 
-                            ? 'bg-white border-gray-100 text-gray-500' 
-                            : n.type === 'danger' 
-                            ? 'bg-rose-50/60 border-rose-100 text-rose-800 font-semibold' 
-                            : 'bg-amber-50/60 border-amber-100 text-amber-805'
-                        }`}
-                      >
-                        <span className="font-extrabold block mb-0.5">{n.title}</span>
-                        <p className="font-normal text-gray-600 leading-snug">{n.message}</p>
-                        <span className="text-[8px] text-gray-400 font-mono mt-1 block">{formatBSDate(n.date)}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Quick Active user indicator */}
-          <div className="flex items-center gap-2 border-l border-gray-200 pl-3 text-xs" id="quick-user-pill">
-            <div className="h-7 w-7 rounded-full bg-blue-100 text-blue-700 font-extrabold flex items-center justify-center">
-              {currentUserRole.charAt(0)}
-            </div>
-            <div className="hidden sm:block text-left">
-              <span className="font-bold text-gray-800 block line-clamp-1">Aseem Shaha</span>
-              <span className="text-[10px] text-blue-600 block leading-none font-semibold mt-0.5">{currentUserRole} Access</span>
-            </div>
-          </div>
-
-        </div>
-      </header>
-
-      {/* MID CONTAINER SHIFT */}
-      <div className="flex-1 flex overflow-hidden relative" id="shell-mid-section">
-
-        {/* SIDE BAR LAYOUT FOR DESKTOPS */}
-        <aside className="hidden md:flex flex-col justify-between w-64 bg-white border-r border-gray-150 p-4 shrink-0 transition" id="desktop-sidebar">
-          <div className="space-y-6" id="sidebar-top">
-            
-            <div className="space-y-1.5" id="nav-group-title">
-              <span className="text-[9px] font-bold text-gray-450 uppercase tracking-widest block px-2.5">Corporate Operations Desk</span>
-              <div className="space-y-1" id="sidebar-tabs-list">
-                {allowedTabs.map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      id={`sidebar-link-${tab.id}`}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-xs text-left transition ${
-                        activeTab === tab.id 
-                          ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/10' 
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span>{tab.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Quick Helper keys */}
-            <div className="bg-gray-50/60 p-3 rounded-lg border text-[10px] text-gray-400 font-mono space-y-1" id="shortcut-helper-keys">
-              <span className="text-gray-500 font-bold block pb-1 border-b">POS Terminal Keys:</span>
-              <div>• Press <kbd className="bg-white px-1 border rounded shadow-xxs">F2</kbd> for quick billing</div>
-              <div>• Press <kbd className="bg-white px-1 border rounded shadow-xxs">/</kbd> for command box</div>
-            </div>
-          </div>
-
-          {/* Sidebar current credentials footer */}
-          <div className="border-t border-gray-100 pt-4" id="sidebar-bottom">
-            <div className="flex items-center gap-3 text-xs" id="sidebar-footer-credentials">
-              <div className="h-8 w-8 bg-gray-50 border rounded-lg flex items-center justify-center text-gray-500">
-                <Terminal className="h-4.5 w-4.5" />
+            {/* Logo brand for mobile only, and workspace name on desktop */}
+            <div className="flex items-center gap-2.5 md:hidden" id="brand-logo-panel-mobile">
+              <div className="h-8.5 w-8.5 rounded-lg bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-sm shadow-md shadow-blue-500/20" id="brand-icon-mobile">
+                S
               </div>
               <div>
-                <span className="font-extrabold text-gray-900 block leading-none">BS Calendar:</span>
-                <span className="text-[10px] text-emerald-600 block mt-1 font-semibold">{formatBSDate(getTodayBS()).split(',')[0]}</span>
+                <h1 className="text-xs font-black text-gray-900 tracking-tight leading-none uppercase font-display">
+                  {businessConfig.name}
+                </h1>
+                <span className="text-[8px] text-gray-400 font-sans font-medium block mt-0.5" id="nepali-brand-caption">SajiloBiz</span>
               </div>
             </div>
-          </div>
-        </aside>
 
-        {/* MOBILE DRAWER WINDOW OVERLAY */}
-        {mobileMenuOpen && (
-          <div className="fixed inset-0 z-50 flex md:hidden bg-black/40 backdrop-blur-xs" id="mobile-menu-drawer-wrapper">
-            <div className="bg-white w-64 h-full p-4 flex flex-col justify-between" id="mobile-menu-drawer">
-              <div className="space-y-5" id="mobile-drawer-top">
-                <div className="flex justify-between items-center" id="mobile-drawer-header">
-                  <span className="font-bold text-xs uppercase text-gray-400">Main Drawer Menu</span>
-                  <button 
-                    id="btn-close-mobile-menu"
-                    onClick={() => setMobileMenuOpen(false)} 
-                    className="p-1 text-gray-500 hover:bg-gray-100 rounded-lg"
-                  >
-                    <X className="h-4.5 w-4.5" />
-                  </button>
-                </div>
-
-                <div className="space-y-1.5" id="mobile-drawer-tabs-list">
-                  {allowedTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <button
-                        key={tab.id}
-                        id={`mobile-link-${tab.id}`}
-                        onClick={() => {
-                          setActiveTab(tab.id);
-                          setMobileMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold text-left transition ${
-                          activeTab === tab.id 
-                            ? 'bg-blue-600 text-white' 
-                            : 'text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span>{tab.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="border-t pt-4" id="mobile-drawer-bottom">
-                <span className="text-[10px] text-gray-400 block pb-1">Logged operator context:</span>
-                <span className="text-xs font-extrabold text-blue-700 block">{currentUserRole} Portal Desk</span>
-              </div>
+            {/* Breadcrumb Workspace Slug for Desktops */}
+            <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-gray-400" id="desktop-breadcrumbs">
+              <span className="hover:text-gray-600 transition cursor-pointer font-display">SajiloBiz System</span>
+              <span className="text-gray-300">/</span>
+              <span className="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-md capitalize font-display">{activeTab === 'contacts' ? 'Ledgers' : activeTab === 'accounting' ? 'Bookkeeping' : activeTab}</span>
             </div>
           </div>
-        )}
 
-        {/* MAIN ROUTE CONTENT COMPONENT SCROLLER */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6" id="route-main-scroller">
+          {/* Universal controls: search, notification, profile */}
+          <div className="flex items-center gap-3" id="global-header-right">
+            
+            {/* Mock Spotlight Search button */}
+            <button
+              id="btn-trigger-search-palette"
+              onClick={() => setPaletteOpen(true)}
+              className="hidden sm:flex items-center gap-3 px-3 py-1.5 bg-gray-50 border border-gray-150 hover:border-gray-300 hover:bg-gray-100/50 rounded-lg text-xs text-gray-400 transition cursor-pointer select-none active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-1.5">
+                <Search className="h-3.5 w-3.5 text-gray-400" />
+                <span className="font-medium text-[11px]">Search or command...</span>
+              </div>
+              <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-mono text-gray-450 bg-white border border-gray-150 rounded shadow-2xs leading-none">
+                /
+              </kbd>
+            </button>
+
+            {/* Notifications Alerts bell */}
+            <div className="relative" id="notifications-bell-container">
+              <button
+                id="btn-toggle-notifications-dropdown"
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-450 hover:text-gray-700 transition"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute top-1 right-1 h-3.5 w-3.5 bg-rose-500 text-white font-mono font-bold text-[8px] rounded-full flex items-center justify-center animate-bounce">
+                    {unreadNotifCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification alert lists window popover */}
+              {showNotifications && (
+                <div className="absolute right-0 mt-2.5 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-3.5 space-y-3 animate-fade-in" id="notifications-popover">
+                  <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                    <span className="font-bold text-xs text-gray-900 font-display">Sajilo Notifications ({unreadNotifCount})</span>
+                    <button 
+                      id="btn-close-notif-dropdown"
+                      onClick={() => setShowNotifications(false)} 
+                      className="text-[10px] text-gray-450 hover:text-gray-600 font-medium"
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1" id="notifications-drop-list">
+                    {notifications.length === 0 ? (
+                      <p className="text-center py-6 text-gray-400 text-[11px]">No alerts triggered.</p>
+                    ) : (
+                      notifications.map((n) => (
+                        <div 
+                          key={n.id}
+                          id={`notif-drop-item-${n.id}`}
+                          onClick={() => markNotificationRead(n.id)}
+                          className={`p-2.5 rounded-lg border text-[10px] block cursor-pointer transition ${
+                            n.isRead 
+                              ? 'bg-white border-gray-100 text-gray-550' 
+                              : n.type === 'danger' 
+                              ? 'bg-rose-50/60 border-rose-100 text-rose-800 font-semibold' 
+                              : 'bg-amber-50/60 border-amber-100 text-amber-805'
+                          }`}
+                        >
+                          <span className="font-extrabold block mb-0.5 font-display">{n.title}</span>
+                          <p className="font-normal text-gray-600 leading-snug">{n.message}</p>
+                          <span className="text-[8px] text-gray-405 font-mono mt-1 block">{formatBSDate(n.date)}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Active user indicator */}
+            <div className="flex items-center gap-2.5 border-l border-gray-200 pl-3.5 text-xs" id="quick-user-pill">
+              <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-600 font-extrabold flex items-center justify-center border border-blue-100 shadow-2xs">
+                {currentUserRole.charAt(0)}
+              </div>
+              <div className="hidden sm:block text-left">
+                <span className="font-extrabold text-gray-800 block line-clamp-1 font-display">Aseem Shaha</span>
+                <span className="text-[9px] text-blue-600 font-bold block mt-0.5 uppercase tracking-wide">{currentUserRole} Access</span>
+              </div>
+            </div>
+
+          </div>
+        </header>
+
+        {/* ACTIVE SCROLLING ROUTE CONTAINER */}
+        <main className="flex-1 md:overflow-y-auto overflow-y-visible glass-panel rounded-2xl p-4 sm:p-5 md:p-6 min-h-0" id="route-main-scroller">
           
           <motion.div
-            initial={{ opacity: 0, y: 3 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.15 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             key={activeTab}
-            className="w-full"
+            className="w-full min-h-full flex flex-col"
             id={`main-route-wrapper-${activeTab}`}
           >
             {activeTab === 'dashboard' && (
@@ -312,6 +294,55 @@ const SajiloAppContent: React.FC = () => {
         </main>
 
       </div>
+
+      {/* MOBILE DRAWER WINDOW OVERLAY */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden bg-black/40 backdrop-blur-xs" id="mobile-menu-drawer-wrapper">
+          <div className="bg-white w-64 h-full p-4 flex flex-col justify-between shadow-2xl animate-fade-in" id="mobile-menu-drawer">
+            <div className="space-y-5" id="mobile-drawer-top">
+              <div className="flex justify-between items-center" id="mobile-drawer-header">
+                <span className="font-bold text-xs uppercase text-gray-400">Main Drawer Menu</span>
+                <button 
+                  id="btn-close-mobile-menu"
+                  onClick={() => setMobileMenuOpen(false)} 
+                  className="p-1 text-gray-500 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="h-4.5 w-4.5" />
+                </button>
+              </div>
+
+              <div className="space-y-1.5" id="mobile-drawer-tabs-list">
+                {allowedTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      id={`mobile-link-${tab.id}`}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setMobileMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold text-left transition ${
+                        activeTab === tab.id 
+                          ? 'bg-blue-600 text-white font-bold' 
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{tab.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="border-t pt-4" id="mobile-drawer-bottom">
+              <span className="text-[10px] text-gray-400 block pb-1">Logged operator context:</span>
+              <span className="text-xs font-extrabold text-blue-700 block">{currentUserRole} Portal Desk</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* BOTTOM FLOATING COMMAND SPOTLIGHT POPUP */}
       <CommandPalette 

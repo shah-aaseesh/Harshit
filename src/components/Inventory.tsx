@@ -10,7 +10,7 @@ import { formatBSDate, getTodayBS } from '../utils/nepaliCalendar';
 export const Inventory: React.FC = () => {
   const { 
     products, stockMovements, submitProduct, adjustStockQuantity, 
-    currentUserRole 
+    currentUserRole, invoices, setProducts
   } = useApp();
 
   // Selected tab: 'roster' | 'movements'
@@ -25,6 +25,12 @@ export const Inventory: React.FC = () => {
   const [showAdjustStockModal, setShowAdjustStockModal] = useState<boolean>(false);
   const [selectedProductToAdjust, setSelectedProductToAdjust] = useState<Product | null>(null);
 
+  // Edit/Delete Modals state
+  const [showEditProductModal, setShowEditProductModal] = useState<boolean>(false);
+  const [selectedProductToEdit, setSelectedProductToEdit] = useState<Product | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [selectedProductToDelete, setSelectedProductToDelete] = useState<Product | null>(null);
+
   // Add product form states
   const [newName, setNewName] = useState<string>('');
   const [newNepaliName, setNewNepaliName] = useState<string>('');
@@ -36,6 +42,18 @@ export const Inventory: React.FC = () => {
   const [newStockQty, setNewStockQty] = useState<number>(0);
   const [newMinAlert, setNewMinAlert] = useState<number>(5);
   const [newDesc, setNewDesc] = useState<string>('');
+
+  // Edit product form states
+  const [editName, setEditName] = useState<string>('');
+  const [editNepaliName, setEditNepaliName] = useState<string>('');
+  const [editSku, setEditSku] = useState<string>('');
+  const [editCategory, setEditCategory] = useState<string>('');
+  const [editUnit, setEditUnit] = useState<string>('');
+  const [editPurchasePrice, setEditPurchasePrice] = useState<number>(0);
+  const [editSellingPrice, setEditSellingPrice] = useState<number>(0);
+  const [editMinAlert, setEditMinAlert] = useState<number>(5);
+  const [editDesc, setEditDesc] = useState<string>('');
+  const [editError, setEditError] = useState<string>('');
 
   // Stock Adjustment form states
   const [adjustQty, setAdjustQty] = useState<number>(1);
@@ -102,6 +120,77 @@ export const Inventory: React.FC = () => {
     setSelectedProductToAdjust(null);
     setAdjustQty(1);
     setAdjustReason('Physical Count Surplus');
+  };
+
+  const handleEditProductClick = (p: Product) => {
+    setSelectedProductToEdit(p);
+    setEditName(p.name);
+    setEditNepaliName(p.nepaliName || '');
+    setEditSku(p.sku);
+    setEditCategory(p.category);
+    setEditUnit(p.unit);
+    setEditPurchasePrice(p.purchasePrice);
+    setEditSellingPrice(p.sellingPrice);
+    setEditMinAlert(p.minStockAlert);
+    setEditDesc(p.description || '');
+    setEditError('');
+    setShowEditProductModal(true);
+  };
+
+  const handleEditProductSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProductToEdit) return;
+    if (!editName.trim() || !editSku.trim()) {
+      setEditError('Name and SKU are required');
+      return;
+    }
+
+    const skuConflict = products.some(p => p.sku.toUpperCase() === editSku.toUpperCase() && p.id !== selectedProductToEdit.id);
+    if (skuConflict) {
+      setEditError(`SKU code "${editSku.toUpperCase()}" is already in use by another product.`);
+      return;
+    }
+
+    const updatedProducts = products.map(p => {
+      if (p.id === selectedProductToEdit.id) {
+        return {
+          ...p,
+          name: editName,
+          nepaliName: editNepaliName || undefined,
+          sku: editSku.toUpperCase(),
+          category: editCategory,
+          unit: editUnit,
+          purchasePrice: editPurchasePrice,
+          sellingPrice: editSellingPrice,
+          minStockAlert: editMinAlert,
+          description: editDesc || undefined
+        };
+      }
+      return p;
+    });
+
+    setProducts(updatedProducts);
+    setShowEditProductModal(false);
+    setSelectedProductToEdit(null);
+  };
+
+  const handleDeleteProductClick = (p: Product) => {
+    setSelectedProductToDelete(p);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!selectedProductToDelete) return;
+
+    const isSold = invoices.some(inv => inv.items.some(item => item.productId === selectedProductToDelete.id));
+    if (isSold) {
+      return;
+    }
+
+    const updatedProducts = products.filter(p => p.id !== selectedProductToDelete.id);
+    setProducts(updatedProducts);
+    setShowDeleteModal(false);
+    setSelectedProductToDelete(null);
   };
 
   return (
@@ -227,7 +316,7 @@ export const Inventory: React.FC = () => {
                     <th id="th-inv-retail" className="p-4 text-right">Retail Price (Rs)</th>
                     <th id="th-inv-stock" className="p-4 text-center">Remaining Stock</th>
                     <th id="th-inv-level" className="p-4">Thresh Level</th>
-                    <th id="th-inv-actions" className="p-4 text-center">Reconciliation</th>
+                    <th id="th-inv-actions" className="p-4 text-center w-56">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 text-gray-600 animate-fade-in" id="inventory-roster-tbody">
@@ -280,10 +369,32 @@ export const Inventory: React.FC = () => {
                                   setSelectedProductToAdjust(p);
                                   setShowAdjustStockModal(true);
                                 }}
-                                className="p-1 px-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-100 rounded text-gray-600 font-semibold active:scale-95 transition text-[10px] flex items-center gap-1"
+                                className="p-1 px-2 hover:bg-gray-150 border border-gray-200 rounded text-gray-700 font-semibold active:scale-95 transition text-[10px] flex items-center gap-1 cursor-pointer"
+                                title="Audit Stock"
                               >
-                                <Database className="h-3 w-3 text-gray-400" /> Audit Stock
+                                <Database className="h-3 w-3 text-gray-400" /> Audit
                               </button>
+
+                              {currentUserRole !== 'Staff' && (
+                                <>
+                                  <button
+                                    id={`btn-edit-product-${p.id}`}
+                                    onClick={() => handleEditProductClick(p)}
+                                    className="p-1 px-2 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded text-gray-600 font-semibold active:scale-95 transition text-[10px] flex items-center gap-1 cursor-pointer"
+                                    title="Edit Product Details"
+                                  >
+                                    <Edit2 className="h-3 w-3 text-blue-500" /> Edit
+                                  </button>
+                                  <button
+                                    id={`btn-delete-product-${p.id}`}
+                                    onClick={() => handleDeleteProductClick(p)}
+                                    className="p-1 px-2 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-gray-200 rounded text-gray-600 font-semibold active:scale-95 transition text-[10px] flex items-center gap-1 cursor-pointer"
+                                    title="Delete Product"
+                                  >
+                                    <Trash className="h-3 w-3 text-rose-500" /> Delete
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -631,6 +742,260 @@ export const Inventory: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL: EDIT PRODUCT DETAILS */}
+      {showEditProductModal && selectedProductToEdit && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-edit-product">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-4 border border-gray-150" id="edit-product-modal-inner">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+              <span className="font-semibold text-gray-950 text-sm">Edit Product Profile (विवरण सम्पादन)</span>
+              <button 
+                id="btn-close-edit-product-modal"
+                onClick={() => {
+                  setShowEditProductModal(false);
+                  setSelectedProductToEdit(null);
+                }} 
+                className="text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {editError && (
+              <div className="bg-rose-50 text-rose-800 border border-rose-100 p-2.5 rounded-lg text-xs font-semibold flex items-center gap-1.5" id="edit-product-error">
+                <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleEditProductSubmit} className="space-y-3.5 text-xs" id="edit-product-form">
+              <div className="grid grid-cols-2 gap-3" id="edit-product-meta-inputs">
+                <div className="space-y-1">
+                  <label className="text-gray-600 block">Product English Name *</label>
+                  <input
+                    type="text"
+                    id="edit-input-product-name-en"
+                    required
+                    placeholder="e.g. Kathmandu Organic Khuwa"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-gray-650 block">Nepali Label Translation</label>
+                  <input
+                    type="text"
+                    id="edit-input-product-name-np"
+                    placeholder="e.g. काठमाडौं प्राङ्गारिक खुवा"
+                    value={editNepaliName}
+                    onChange={(e) => setEditNepaliName(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3" id="edit-product-code-inputs">
+                <div className="space-y-1">
+                  <label className="text-gray-600 block">SKU Code *</label>
+                  <input
+                    type="text"
+                    id="edit-input-product-sku"
+                    required
+                    placeholder="e.g. KHUWA-KTM-01"
+                    value={editSku}
+                    onChange={(e) => setEditSku(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg p-2 font-mono uppercase outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-gray-655 block">Category</label>
+                  <select
+                    id="edit-select-product-category"
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg p-2 outline-none bg-white focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="Kitchenware">Kitchenware</option>
+                    <option value="Clothing">Clothing Cashmere</option>
+                    <option value="Beverages">Beverages & Drinks</option>
+                    <option value="Groceries">Groceries & Foods</option>
+                    <option value="Fruits">Fresh Fruits Farms</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-gray-600 block">Quantity Unit</label>
+                  <input
+                    type="text"
+                    id="edit-input-product-unit"
+                    required
+                    placeholder="pcs, kg, case, ltr"
+                    value={editUnit}
+                    onChange={(e) => setEditUnit(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3" id="edit-product-financial-inputs">
+                <div className="space-y-1">
+                  <label className="text-gray-650 block">Purchase Cost Price (Rs) *</label>
+                  <input
+                    type="number"
+                    id="edit-input-product-cost"
+                    required
+                    min="0"
+                    placeholder="Cost value"
+                    value={editPurchasePrice}
+                    onChange={(e) => setEditPurchasePrice(parseFloat(e.target.value) || 0)}
+                    className="w-full border border-gray-200 rounded-lg p-2 font-mono outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-gray-600 block">Retail Selling Price (Rs) *</label>
+                  <input
+                    type="number"
+                    id="edit-input-product-retail"
+                    required
+                    min="0"
+                    placeholder="Retail tag rate"
+                    value={editSellingPrice}
+                    onChange={(e) => setEditSellingPrice(parseFloat(e.target.value) || 0)}
+                    className="w-full border border-gray-200 rounded-lg p-2 font-mono outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-650 block">Low Stock Alert Thresh</label>
+                <input
+                  type="number"
+                  id="edit-input-product-alert-threshold"
+                  required
+                  min="0"
+                  placeholder="Count alert"
+                  value={editMinAlert}
+                  onChange={(e) => setEditMinAlert(parseInt(e.target.value) || 0)}
+                  className="w-full border border-gray-200 rounded-lg p-2 font-mono outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-600 block">Item General Description</label>
+                <textarea
+                  id="edit-textarea-product-desc"
+                  placeholder="Optional notes regarding suppliers or quality specs..."
+                  rows={2}
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                id="btn-confirm-edit-product"
+                className="w-full py-3 bg-blue-600 font-bold text-white rounded-lg hover:bg-blue-700 active:scale-98 transition cursor-pointer"
+              >
+                Save Updated SKU Profile
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DELETE PRODUCT VERIFICATION */}
+      {showDeleteModal && selectedProductToDelete && (() => {
+        const isSold = invoices.some(inv => inv.items.some(item => item.productId === selectedProductToDelete.id));
+
+        return (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-delete-product">
+            <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border border-gray-150" id="delete-product-inner">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                <span className="font-semibold text-gray-950 text-xs uppercase tracking-tight text-rose-600">
+                  {isSold ? 'Product Deletion Blocked' : 'Confirm Product Deletion'}
+                </span>
+                <button 
+                  id="btn-close-delete-modal"
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setSelectedProductToDelete(null);
+                  }} 
+                  className="text-gray-400 hover:text-gray-600 font-sans cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {isSold ? (
+                <div className="space-y-4" id="delete-blocked-view">
+                  <div className="bg-amber-50 border border-amber-100 text-amber-900 rounded-lg p-4 space-y-2 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="h-4.5 w-4.5 text-amber-500 shrink-0" />
+                      <span>Cannot Delete Active SKU</span>
+                    </div>
+                    <p className="leading-relaxed">
+                      The product <strong className="font-extrabold text-gray-900">"{selectedProductToDelete.name}"</strong> (SKU: <span className="font-mono">{selectedProductToDelete.sku}</span>) has <strong>already been sold</strong> in historical invoices.
+                    </p>
+                    <p className="leading-relaxed text-[11px] text-amber-700">
+                      To preserve financial records and keep your sales history & daybook reports accurate, deleting sold items is strictly restricted.
+                    </p>
+                  </div>
+                  <button
+                    id="btn-close-blocked-modal"
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setSelectedProductToDelete(null);
+                    }}
+                    className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-lg text-xs transition cursor-pointer"
+                  >
+                    Close Dialog
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4" id="delete-confirmed-view">
+                  <div className="space-y-2 text-xs text-gray-600">
+                    <p>Are you sure you want to permanently delete the product from the catalog?</p>
+                    <div className="bg-gray-50 border border-gray-150 rounded-lg p-3 space-y-1">
+                      <span className="text-gray-400 font-medium block">Product Name:</span>
+                      <strong className="font-black text-gray-900 block">{selectedProductToDelete.name}</strong>
+                      <span className="text-gray-400 font-medium block mt-1">SKU Code:</span>
+                      <strong className="font-mono text-gray-900 block uppercase">{selectedProductToDelete.sku}</strong>
+                    </div>
+                    <p className="text-rose-600 font-bold">This action is irreversible and will remove this product immediately from your inventory ledger.</p>
+                  </div>
+
+                  <div className="flex gap-2 text-xs" id="delete-actions-row">
+                    <button
+                      id="btn-cancel-delete"
+                      type="button"
+                      onClick={() => {
+                        setShowDeleteModal(false);
+                        setSelectedProductToDelete(null);
+                      }}
+                      className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-lg transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      id="btn-confirm-delete-action"
+                      type="button"
+                      onClick={handleConfirmDelete}
+                      className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition cursor-pointer"
+                    >
+                      Permanently Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
