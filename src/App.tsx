@@ -10,9 +10,11 @@ import { Settings } from './components/Settings';
 import { CommandPalette } from './components/CommandPalette';
 import { 
   BarChart2, ShoppingCart, Layers, Users, BookOpen, Database, 
-  Settings as SettingsIcon, Bell, Search, Menu, X, Sparkles, Terminal, LogOut
+  Settings as SettingsIcon, Bell, Search, Menu, X, Terminal, LogOut
 } from 'lucide-react';
+import { Login } from './components/Login';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 import { formatBSDate, getTodayBS } from './utils/nepaliCalendar';
 
 // Inner App with context bound
@@ -20,8 +22,27 @@ const SajiloAppContent: React.FC = () => {
   const { 
     businessConfig, notifications, markNotificationRead, 
     currentUserRole, toggleRole, activeBusinessId, switchBusinessProfile,
-    hasSecondBusiness, enableSecondBusiness
+    hasSecondBusiness, enableSecondBusiness,
+    session, user, loadingAuth, signOut, isSupabaseConfigured
   } = useApp();
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50/70">
+        <div className="text-center space-y-4">
+          <svg className="animate-spin h-10 w-10 text-blue-600 mx-auto" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <p className="text-xs text-gray-500 font-bold tracking-wide uppercase">Initializing Workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSupabaseConfigured && !session) {
+    return <Login />;
+  }
 
   const getProfileName = (id: 'b1' | 'b2') => {
     try {
@@ -65,6 +86,18 @@ const SajiloAppContent: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalShortcuts);
   }, []);
 
+  // Storage full warning listener
+  useEffect(() => {
+    const handleStorageFull = () => {
+      toast.error('Local storage is full! Go to Settings and backup your data to Supabase to free up space.', {
+        duration: 8000,
+      });
+    };
+    window.addEventListener('sajilobiz:storage-full', handleStorageFull);
+    return () => window.removeEventListener('sajilobiz:storage-full', handleStorageFull);
+  }, []);
+
+
   // Filter tabs list according to logged in Roles permissions
   const allTabs = [
     { id: 'dashboard', name: 'Dashboard', icon: BarChart2, minPermission: 'Staff' },
@@ -93,23 +126,14 @@ const SajiloAppContent: React.FC = () => {
           
           {/* Brand Panel inside Sidebar */}
           <div className="flex items-center gap-3 border-b border-gray-150/50 pb-4" id="brand-logo-panel">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-lg shadow-md shadow-blue-500/20 overflow-hidden shrink-0" id="brand-icon">
-              {businessConfig.logo ? (
-                <img 
-                  src={businessConfig.logo} 
-                  alt="Logo" 
-                  className="h-full w-full object-cover p-1 bg-white" 
-                  referrerPolicy="no-referrer" 
-                />
-              ) : (
-                'S'
-              )}
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-lg shadow-md shadow-blue-500/20 overflow-hidden shrink-0 font-display" id="brand-icon">
+              S
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-xs font-black text-gray-900 tracking-tight leading-none uppercase font-display truncate">
-                {businessConfig.name}
+              <h1 className="text-sm font-black text-gray-900 tracking-tight leading-none uppercase font-display truncate">
+                SajiloBiz
               </h1>
-              <span className="text-[9px] text-gray-400 font-sans font-semibold block mt-1" id="nepali-brand-caption">Operating Desk</span>
+              <span className="text-[9px] text-gray-400 font-sans font-semibold block mt-1" id="nepali-brand-caption">SaaS Operating Desk</span>
             </div>
           </div>
 
@@ -188,15 +212,26 @@ const SajiloAppContent: React.FC = () => {
         </div>
 
         {/* Sidebar current credentials footer */}
-        <div className="border-t border-gray-150/50 pt-4" id="sidebar-bottom">
-          <div className="flex items-center gap-3 text-xs" id="sidebar-footer-credentials">
-            <div className="h-8.5 w-8.5 bg-gray-50 border border-gray-150/50 rounded-xl flex items-center justify-center text-gray-500 shadow-2xs">
-              <Terminal className="h-4 w-4" />
+        <div className="border-t border-gray-150/50 pt-4 space-y-3" id="sidebar-bottom">
+          <div className="flex items-center justify-between text-xs" id="sidebar-footer-credentials">
+            <div className="flex items-center gap-3">
+              <div className="h-8.5 w-8.5 bg-gray-50 border border-gray-150/50 rounded-xl flex items-center justify-center text-gray-500 shadow-2xs">
+                <Terminal className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="font-extrabold text-gray-800 block leading-none font-display">BS Calendar:</span>
+                <span className="text-[10px] text-emerald-600 block mt-1 font-bold">{formatBSDate(getTodayBS()).split(',')[0]}</span>
+              </div>
             </div>
-            <div>
-              <span className="font-extrabold text-gray-800 block leading-none font-display">BS Calendar:</span>
-              <span className="text-[10px] text-emerald-600 block mt-1 font-bold">{formatBSDate(getTodayBS()).split(',')[0]}</span>
-            </div>
+            {isSupabaseConfigured && session && (
+              <button
+                onClick={signOut}
+                title="Sign Out"
+                className="p-2 hover:bg-rose-50 text-gray-400 hover:text-rose-600 rounded-xl transition border border-transparent hover:border-rose-100 cursor-pointer"
+              >
+                <LogOut className="h-4.5 w-4.5" />
+              </button>
+            )}
           </div>
         </div>
       </aside>
@@ -219,23 +254,14 @@ const SajiloAppContent: React.FC = () => {
 
             {/* Logo brand for mobile only, and workspace name on desktop */}
             <div className="flex items-center gap-2.5 md:hidden" id="brand-logo-panel-mobile">
-              <div className="h-8.5 w-8.5 rounded-lg bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-sm shadow-md shadow-blue-500/20 overflow-hidden" id="brand-icon-mobile">
-                {businessConfig.logo ? (
-                  <img 
-                    src={businessConfig.logo} 
-                    alt="Logo" 
-                    className="h-full w-full object-cover p-1 bg-white" 
-                    referrerPolicy="no-referrer" 
-                  />
-                ) : (
-                  'S'
-                )}
+              <div className="h-8.5 w-8.5 rounded-lg bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-sm shadow-md shadow-blue-500/20 overflow-hidden font-display" id="brand-icon-mobile">
+                S
               </div>
               <div>
                 <h1 className="text-xs font-black text-gray-900 tracking-tight leading-none uppercase font-display">
-                  {businessConfig.name}
+                  SajiloBiz
                 </h1>
-                <span className="text-[8px] text-gray-400 font-sans font-medium block mt-0.5" id="nepali-brand-caption">SajiloBiz</span>
+                <span className="text-[8px] text-gray-400 font-sans font-medium block mt-0.5" id="nepali-brand-caption">SaaS Portal</span>
               </div>
             </div>
 
@@ -334,11 +360,12 @@ const SajiloAppContent: React.FC = () => {
             {/* Quick Active user indicator */}
             <div className="flex items-center gap-2.5 border-l border-gray-200 pl-3.5 text-xs" id="quick-user-pill">
               <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-600 font-extrabold flex items-center justify-center border border-blue-100 shadow-2xs">
-                {currentUserRole.charAt(0)}
+                {user?.email ? user.email.charAt(0).toUpperCase() : currentUserRole.charAt(0)}
               </div>
               <div className="hidden sm:block text-left">
-                <span className="font-extrabold text-gray-800 block line-clamp-1 font-display">Aseem Shaha</span>
-                <span className="text-[9px] text-blue-600 font-bold block mt-0.5 uppercase tracking-wide">{currentUserRole} Access</span>
+                <span className="font-extrabold text-gray-800 block line-clamp-1 font-display">
+                  {user?.email ? user.email.split('@')[0] : 'Operator'}
+                </span>
               </div>
             </div>
 
@@ -451,9 +478,23 @@ const SajiloAppContent: React.FC = () => {
               </div>
             </div>
 
-            <div className="border-t pt-4" id="mobile-drawer-bottom">
-              <span className="text-[10px] text-gray-400 block pb-1">Logged operator context:</span>
-              <span className="text-xs font-extrabold text-blue-700 block">{currentUserRole} Portal Desk</span>
+            <div className="border-t pt-4 flex items-center justify-between" id="mobile-drawer-bottom">
+              <div>
+                <span className="text-[10px] text-gray-400 block pb-1">Logged operator context:</span>
+                <span className="text-xs font-extrabold text-blue-700 block">{currentUserRole} Portal Desk</span>
+              </div>
+              {isSupabaseConfigured && session && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    signOut();
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 border border-rose-100 text-rose-700 font-bold text-[10px] rounded-lg transition active:scale-[0.98]"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span>Log Out</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -520,13 +561,13 @@ const SajiloAppContent: React.FC = () => {
                 type="button"
                 onClick={() => {
                   if (!newBusinessName.trim()) {
-                    alert('Please enter a valid business name.');
+                    toast.error('Please enter a valid business name.');
                     return;
                   }
                   enableSecondBusiness(newBusinessName);
                   setShowAddBusinessModal(false);
                   setNewBusinessName('');
-                  alert('Secondary business profile created! You can now toggle profiles via the sidebar or Settings page.');
+                  toast.success('Secondary business profile created! Toggle profiles via the sidebar or Settings page.');
                 }}
                 className="flex-1 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 text-xs shadow-md shadow-blue-500/10 transition"
               >

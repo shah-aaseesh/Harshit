@@ -74,17 +74,24 @@ export async function pushDataToSupabase(keys: { [key: string]: any }): Promise<
   }
 
   try {
+    // Retrieve currently logged-in user to map the tenant context
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, message: 'No authenticated operator session found. Cloud backup aborted.' };
+    }
+
     const rows = Object.entries(keys).map(([key, value]) => ({
+      tenant_id: user.id,
       key,
       value,
       updated_at: new Date().toISOString(),
     }));
 
-    // Perform upserts key-by-key to guarantee completion and easier debugging
+    // Perform upserts key-by-key targeting the composite unique constraint (tenant_id, key)
     for (const row of rows) {
       const { error } = await supabase
         .from('app_state')
-        .upsert(row, { onConflict: 'key' });
+        .upsert(row, { onConflict: 'tenant_id,key' });
 
       if (error) {
         throw new Error(`Failed to upsert key "${row.key}": ${error.message}`);
@@ -113,9 +120,17 @@ export async function pullDataFromSupabase(): Promise<{ success: boolean; data?:
   }
 
   try {
+    // Validate session
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, message: 'No authenticated session. Access denied.' };
+    }
+
+    // Explicitly filter by tenant_id to guarantee database isolation
     const { data, error } = await supabase
       .from('app_state')
-      .select('key, value');
+      .select('key, value')
+      .eq('tenant_id', user.id);
 
     if (error) {
       throw error;

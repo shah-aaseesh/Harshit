@@ -3,6 +3,18 @@ import { useApp } from '../context/AppContext';
 import { 
   Settings as SettingsIcon, Save, Store, Upload, XCircle
 } from 'lucide-react';
+import { toast } from 'sonner';
+
+const getProfileName = (id: 'b1' | 'b2'): string => {
+  try {
+    const key = id === 'b1' ? 'sb_business_config' : 'sb_business_config_b2';
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      return JSON.parse(stored).name || (id === 'b1' ? 'Primary Business' : 'Secondary Business');
+    }
+  } catch (e) {}
+  return id === 'b1' ? 'Primary Business' : 'Secondary Business';
+};
 
 export const Settings: React.FC = () => {
   const { 
@@ -30,11 +42,11 @@ export const Settings: React.FC = () => {
   const handleFile = (file: File) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file (PNG, JPG, etc.)');
+      toast.error('Please upload an image file (PNG, JPG, etc.)');
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      alert('Image size exceeds 2MB limit.');
+      toast.error('Image size exceeds 2MB limit.');
       return;
     }
     const reader = new FileReader();
@@ -66,8 +78,8 @@ export const Settings: React.FC = () => {
         logo: logo || undefined
       });
       setSaving(false);
-      alert("Business Settings and invoice print templates updated successfully!");
-    }, 400); // quick fake delay for sleek feeling
+      toast.success('Business settings and invoice templates saved successfully!');
+    }, 400);
   };
 
   return (
@@ -83,7 +95,7 @@ export const Settings: React.FC = () => {
 
       <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-xxs" id="business-config-panel">
         <span className="text-[10px] font-bold text-gray-405 uppercase tracking-wider block mb-4 flex items-center gap-1">
-          <Store className="h-3.5 w-3.5 text-blue-500" /> Corporate Profile Configuration & Invoice Print Settings
+          <Store className="h-3.5 w-3.5 text-blue-500" /> Corporate Profile Configuration &amp; Invoice Print Settings
         </span>
 
         <form onSubmit={handleUpdateProfile} className="space-y-4 text-xs" id="business-profile-form">
@@ -146,7 +158,7 @@ export const Settings: React.FC = () => {
                     {logo ? 'Replace Logo Image' : 'Select Logo Image'}
                   </span>
                   <span className="text-[10px] text-gray-400 leading-none">
-                    Drag & drop or click to browse. Max 2MB image.
+                    Drag &amp; drop or click to browse. Max 2MB image.
                   </span>
                 </div>
 
@@ -388,12 +400,12 @@ export const Settings: React.FC = () => {
                   type="button"
                   onClick={() => {
                     if (!secName.trim()) {
-                      alert('Please provide a name for the second business');
+                      toast.error('Please provide a name for the second business.');
                       return;
                     }
                     enableSecondBusiness(secName);
                     setSecName('');
-                    alert('Second business profile activated successfully! You can switch profiles anytime using the sidebar or profile switcher.');
+                    toast.success('Second business profile activated! Switch profiles via the sidebar anytime.');
                   }}
                   className="bg-blue-600 text-white font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 text-xs transition duration-150 whitespace-nowrap cursor-pointer"
                 >
@@ -407,14 +419,3 @@ export const Settings: React.FC = () => {
     </div>
   );
 };
-
-  const getProfileName = (id: 'b1' | 'b2') => {
-    try {
-      const key = id === 'b1' ? 'sb_business_config' : 'sb_business_config_b2';
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        return JSON.parse(stored).name || (id === 'b1' ? 'Primary Business' : 'Secondary Business');
-      }
-    } catch (e) {}
-    return id === 'b1' ? 'Primary Business' : 'Secondary Business';
-  };

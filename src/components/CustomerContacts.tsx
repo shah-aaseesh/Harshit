@@ -3,8 +3,9 @@ import { useApp } from '../context/AppContext';
 import { Customer, Supplier } from '../types';
 import { 
   Users, UserPlus, Phone, MapPin, Hash, Plus, DollarSign, HandCoins, 
-  Search, ShieldAlert, Award, FileSpreadsheet, ArrowLeftRight, CheckCircle, Info, Pencil, Printer
+  Search, ShieldAlert, Award, FileSpreadsheet, ArrowLeftRight, CheckCircle, Info, Pencil, Printer, Trash2
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { getTodayBS, numberToWords } from '../utils/nepaliCalendar';
 
 export const CustomerContacts: React.FC = () => {
@@ -65,6 +66,11 @@ export const CustomerContacts: React.FC = () => {
   const [selectedPartyForLedgerPrint, setSelectedPartyForLedgerPrint] = useState<any>(null);
   const [ledgerPrintType, setLedgerPrintType] = useState<'customer' | 'supplier' | null>(null);
   const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait');
+
+  // Delete entity states
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [selectedEntityToDelete, setSelectedEntityToDelete] = useState<Customer | Supplier | null>(null);
+  const [deleteType, setDeleteType] = useState<'customer' | 'supplier'>('customer');
 
   // Search filter implementations
   const filteredCustomers = customers.filter(c => 
@@ -175,6 +181,23 @@ export const CustomerContacts: React.FC = () => {
     setShowEditSuppModal(false);
   };
 
+  const handleConfirmDelete = () => {
+    if (!selectedEntityToDelete) return;
+
+    if (deleteType === 'customer') {
+      const updatedCustomers = customers.filter(c => c.id !== selectedEntityToDelete.id);
+      setCustomers(updatedCustomers);
+      toast.success(`Client profile "${selectedEntityToDelete.name}" has been permanently deleted.`);
+    } else {
+      const updatedSuppliers = suppliers.filter(s => s.id !== selectedEntityToDelete.id);
+      setSuppliers(updatedSuppliers);
+      toast.success(`Supplier profile "${selectedEntityToDelete.name}" has been permanently deleted.`);
+    }
+
+    setShowDeleteModal(false);
+    setSelectedEntityToDelete(null);
+  };
+
   /**
    * Outstanding dues receipt log handler (Automatic double-entry syncs in backend)
    */
@@ -220,7 +243,7 @@ export const CustomerContacts: React.FC = () => {
       setJournals(newJournals);
       localStorage.setItem('sb_journals', JSON.stringify(newJournals));
 
-      alert(`Outstanding payment receipt of Rs. ${settleAmount.toLocaleString()} recorded for client ${clientObj.name}. Dues reduced to Rs. ${updatedDues.toLocaleString()}`);
+      toast.success(`Receipt of Rs. ${settleAmount.toLocaleString()} recorded for ${clientObj.name}. Dues reduced to Rs. ${updatedDues.toLocaleString()}.`);
     } else {
       // suppliers settlement
       const supplierObj = suppliers.find(s => s.id === selectedEntityId);
@@ -257,7 +280,7 @@ export const CustomerContacts: React.FC = () => {
       setJournals(newJournals);
       localStorage.setItem('sb_journals', JSON.stringify(newJournals));
 
-      alert(`Cleared payable of Rs. ${settleAmount.toLocaleString()} to ${supplierObj.name}. Outstanding liability reduced to Rs. ${updatedDues.toLocaleString()}`);
+      toast.success(`Payable of Rs. ${settleAmount.toLocaleString()} cleared to ${supplierObj.name}. Outstanding liability reduced to Rs. ${updatedDues.toLocaleString()}.`);
     }
 
     setShowSettleModal(false);
@@ -577,6 +600,22 @@ export const CustomerContacts: React.FC = () => {
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
+                        <button
+                          id={`btn-delete-cust-${cust.id}`}
+                          onClick={() => {
+                            if (cust.outstandingDue > 0) {
+                              toast.error(`Cannot delete client "${cust.name}" because they have an active outstanding balance of Rs. ${cust.outstandingDue.toLocaleString()}. Please settle the balance first.`);
+                              return;
+                            }
+                            setSelectedEntityToDelete(cust);
+                            setDeleteType('customer');
+                            setShowDeleteModal(true);
+                          }}
+                          className="p-1 hover:bg-gray-100 rounded-md text-gray-400 hover:text-rose-600 transition"
+                          title="Delete Customer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                         {hasDue && (
                           <span className="px-2 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-bold rounded-md animate-pulse">
                             Credit Due
@@ -693,6 +732,22 @@ export const CustomerContacts: React.FC = () => {
                           title="Edit Supplier"
                         >
                           <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          id={`btn-delete-supp-${supp.id}`}
+                          onClick={() => {
+                            if (supp.outstandingDue > 0) {
+                              toast.error(`Cannot delete supplier "${supp.name}" because we owe them an outstanding due of Rs. ${supp.outstandingDue.toLocaleString()}. Please settle the balance first.`);
+                              return;
+                            }
+                            setSelectedEntityToDelete(supp);
+                            setDeleteType('supplier');
+                            setShowDeleteModal(true);
+                          }}
+                          className="p-1 hover:bg-gray-100 rounded-md text-gray-400 hover:text-rose-600 transition"
+                          title="Delete Supplier"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                         {hasDue && (
                           <span className="px-2 py-0.5 bg-amber-100 text-amber-805 text-[10px] font-bold rounded-md animate-pulse">
@@ -832,6 +887,22 @@ export const CustomerContacts: React.FC = () => {
                           title={`Edit ${party.partyType === 'customer' ? 'Customer' : 'Supplier'}`}
                         >
                           <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          id={`btn-delete-party-${party.partyType}-${party.id}`}
+                          onClick={() => {
+                            if (party.outstandingDue > 0) {
+                              toast.error(`Cannot delete ${party.partyType === 'customer' ? 'client' : 'supplier'} "${party.name}" because there is an outstanding balance of Rs. ${party.outstandingDue.toLocaleString()}. Please settle the balance first.`);
+                              return;
+                            }
+                            setSelectedEntityToDelete(party);
+                            setDeleteType(party.partyType);
+                            setShowDeleteModal(true);
+                          }}
+                          className="p-1 hover:bg-gray-100 rounded-md text-gray-400 hover:text-rose-600 transition"
+                          title={`Delete ${party.partyType === 'customer' ? 'Customer' : 'Supplier'}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                         {hasDue && (
                           <span className={`px-2 py-0.5 text-[9px] uppercase tracking-wider font-extrabold rounded-md animate-pulse shrink-0 ${
@@ -1617,6 +1688,74 @@ export const CustomerContacts: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* MODAL: DELETE ENTITY VERIFICATION */}
+      {showDeleteModal && selectedEntityToDelete && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-delete-entity">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border border-gray-150" id="delete-entity-inner">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+              <span className="font-semibold text-gray-950 text-xs uppercase tracking-tight text-rose-600">
+                Confirm Profile Deletion
+              </span>
+              <button 
+                id="btn-close-delete-modal"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setSelectedEntityToDelete(null);
+                }} 
+                className="text-gray-400 hover:text-gray-600 font-sans cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4" id="delete-confirmed-view">
+              <div className="space-y-2 text-xs text-gray-600">
+                <p>Are you sure you want to permanently delete this {deleteType === 'customer' ? 'client' : 'supplier'} profile?</p>
+                <div className="bg-gray-50 border border-gray-150 rounded-lg p-3 space-y-1">
+                  <span className="text-gray-400 font-medium block">Name:</span>
+                  <strong className="font-black text-gray-900 block">{selectedEntityToDelete.name}</strong>
+                  {selectedEntityToDelete.phone && (
+                    <>
+                      <span className="text-gray-400 font-medium block mt-1">Phone:</span>
+                      <strong className="font-mono text-gray-900 block">{selectedEntityToDelete.phone}</strong>
+                    </>
+                  )}
+                  {selectedEntityToDelete.panVat && (
+                    <>
+                      <span className="text-gray-400 font-medium block mt-1">PAN / VAT:</span>
+                      <strong className="font-mono text-gray-900 block">{selectedEntityToDelete.panVat}</strong>
+                    </>
+                  )}
+                </div>
+                <p className="text-rose-650 font-bold">This action is irreversible. Historical transaction references (invoices/bills) will remain intact, but the profile will be removed from all lists immediately.</p>
+              </div>
+
+              <div className="flex gap-2 text-xs" id="delete-actions-row">
+                <button
+                  id="btn-cancel-delete"
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setSelectedEntityToDelete(null);
+                  }}
+                  className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-lg transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  id="btn-confirm-delete-action"
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition cursor-pointer"
+                >
+                  Permanently Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

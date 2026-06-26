@@ -5,6 +5,7 @@ import {
   DollarSign, Plus, Eye, Calendar, Tag, CreditCard, HelpCircle, 
   Trash2, Filter, Receipt, ChevronRight, TrendingDown, Printer
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatBSDate, getTodayBS, getFiscalYear, FISCAL_YEAR_OPTIONS, NEP_MONTHS_EN, numberToWords } from '../utils/nepaliCalendar';
 
 export const Expenses: React.FC = () => {
@@ -68,14 +69,13 @@ export const Expenses: React.FC = () => {
 
   const deleteExpenseLog = (id: string) => {
     if (currentUserRole !== 'Owner') {
-      alert("Permission Denied: Only owners can delete finalized expense entries.");
+      toast.error('Permission Denied: Only owners can delete finalized expense entries.');
       return;
     }
-    if (confirm("Are you sure you want to void this expense voucher? This does not automatically reverse old bank reconciliations.")) {
-      const updated = expenses.filter(e => e.id !== id);
-      setExpenses(updated);
-      localStorage.setItem('sb_expenses', JSON.stringify(updated));
-    }
+    const updated = expenses.filter(e => e.id !== id);
+    setExpenses(updated);
+    localStorage.setItem('sb_expenses', JSON.stringify(updated));
+    toast.success('Expense entry voided successfully.');
   };
 
   const triggerPrintForElement = (elementId: string, titleName: string, orientation: 'portrait' | 'landscape' = 'portrait') => {

@@ -11,7 +11,7 @@ import {
 import { convertADtoBS, getTodayBS } from '../utils/nepaliCalendar';
 import { 
   testSupabaseConnection, pushDataToSupabase, pullDataFromSupabase, 
-  hasSupabaseConfig, SyncResult 
+  hasSupabaseConfig, SyncResult, supabase 
 } from '../utils/supabaseClient';
 
 export interface AlertNotification {
@@ -77,6 +77,12 @@ interface AppContextType {
   switchBusinessProfile: (profileId: 'b1' | 'b2') => void;
   hasSecondBusiness: boolean;
   enableSecondBusiness: (name: string) => void;
+
+  // Auth additions
+  session: any;
+  user: any;
+  loadingAuth: boolean;
+  signOut: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -94,6 +100,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>('Owner');
   const [notifications, setNotifications] = useState<AlertNotification[]>([]);
+
+  // Auth states
+  const [session, setSession] = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
+  const [loadingAuth, setLoadingAuth] = useState<boolean>(true);
 
   // Supabase states
   const [isAutoSyncEnabled, setIsAutoSyncEnabledState] = useState<boolean>(() => {
@@ -268,6 +279,101 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  // Listen to Supabase Auth changes
+  useEffect(() => {
+    if (!supabase) {
+      setLoadingAuth(false);
+      return;
+    }
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        setCurrentUserRole('Owner'); // Every authenticated operator is an Owner
+      }
+      setLoadingAuth(false);
+    });
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        setCurrentUserRole('Owner'); // Every authenticated operator is an Owner
+
+        // Pull fresh data from cloud on sign in to sync state
+        if (event === 'SIGNED_IN') {
+          restoreFromSupabase();
+        }
+      }
+      setLoadingAuth(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const signOut = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    
+    // 1. Wipe all localStorage keys prefixed with 'sb_'
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('sb_')) {
+        localStorage.removeItem(key);
+      }
+    }
+    
+    // 2. Reset App React state variables back to default initial values
+    setBusinessConfigState(INITIAL_BUSINESS_CONFIG);
+    setProducts(INITIAL_PRODUCTS);
+    setCustomers(INITIAL_CUSTOMERS);
+    setSuppliers(INITIAL_SUPPLIERS);
+    setExpenses(INITIAL_EXPENSES);
+    setInvoices(INITIAL_INVOICES);
+    setPurchases(INITIAL_PURCHASES);
+    setJournals(INITIAL_JOURNALS);
+    setStockMovements([]);
+    setNotifications([]);
+    setCurrentUserRole('Owner');
+    setIsAutoSyncEnabledState(false);
+    setLastSyncedAt(null);
+    setSupabaseStatus(null);
+    setActiveBusinessIdState('b1');
+    setHasSecondBusiness(false);
+
+    // 3. Clear session and user contexts
+    setSession(null);
+    setUser(null);
+  };
+
+  // Auto-sync: debounce 3s after any data change, then silently push to Supabase
+  const isFirstLoad = React.useRef(true);
+  useEffect(() => {
+    if (!hasSupabaseConfig) return;
+    // Skip the very first render — data just loaded from localStorage
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      backupToSupabase().then(res => {
+        if (!res.success) {
+          console.warn('[SajiloBiz Sync] Auto-sync failed:', res.error);
+        }
+      });
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [
+    businessConfig, products, customers, suppliers,
+    expenses, invoices, purchases, journals, stockMovements
+  ]);
+
   const checkSupabaseConnection = async () => {
     const result = await testSupabaseConnection();
     setSupabaseStatus(result);
@@ -373,6 +479,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         return { success: true, message: 'All business modules successfully synced down and restored from Supabase!' };
       } else {
+        if (res.message && res.message.includes('No backed up data found')) {
+          resetToDefault();
+        }
         return { success: false, message: res.message, error: res.error };
       }
     } catch (err: any) {
@@ -434,11 +543,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const saveToLocalStorage = (key: string, data: any) => {
     try {
       const getPrefixedKey = (k: string) => activeBusinessId === 'b1' ? k : `${k}_b2`;
-      localStorage.setItem(getPrefixedKey(key), JSON.stringify(data));
-    } catch (e) {
-      console.error("Local storage sync error: ", e);
+      const prefixedKey = getPrefixedKey(key);
+      const serialized = JSON.stringify(data);
+
+      // Warn in dev if a single key grows large (> 1MB)
+      if (serialized.length > 1_000_000) {
+        console.warn(`[SajiloBiz Storage] Key "${prefixedKey}" is ${(serialized.length / 1024).toFixed(0)}KB — consider enabling Supabase cloud sync.`);
+      }
+
+      localStorage.setItem(prefixedKey, serialized);
+    } catch (e: any) {
+      if (e?.name === 'QuotaExceededError') {
+        // Dispatch a custom event so the UI layer (App.tsx) can show a toast
+        window.dispatchEvent(new CustomEvent('sajilobiz:storage-full'));
+        console.error('[SajiloBiz Storage] localStorage is full! Please back up to Supabase and clear old data from Settings.');
+      } else {
+        console.error('Local storage sync error: ', e);
+      }
     }
   };
+
 
   const setBusinessConfig = (config: BusinessConfig) => {
     setBusinessConfigState(config);
@@ -1094,6 +1218,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         switchBusinessProfile,
         hasSecondBusiness,
         enableSecondBusiness,
+        session,
+        user,
+        loadingAuth,
+        signOut,
       }}
     >
       {children}

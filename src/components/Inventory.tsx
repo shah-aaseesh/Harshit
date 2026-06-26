@@ -500,9 +500,9 @@ export const Inventory: React.FC = () => {
                                   setShowAdjustStockModal(true);
                                 }}
                                 className="p-1 px-2 hover:bg-gray-150 border border-gray-200 rounded text-gray-700 font-semibold active:scale-95 transition text-[10px] flex items-center gap-1 cursor-pointer"
-                                title="Audit Stock"
+                                title="Adjust Stock Quantity (Add or Deduct)"
                               >
-                                <Database className="h-3 w-3 text-gray-400" /> Audit
+                                <Database className="h-3 w-3 text-gray-400" /> Adjust Stock
                               </button>
 
                               {currentUserRole !== 'Staff' && (
@@ -788,7 +788,7 @@ export const Inventory: React.FC = () => {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-adjust-stock">
           <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border border-gray-150" id="adjust-stock-inner">
             <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-              <span className="font-semibold text-gray-950 text-xs uppercase tracking-tight">Manual Stock Auditing Desk</span>
+              <span className="font-semibold text-gray-955 text-xs uppercase tracking-tight">Adjust Stock Level (Add/Deduct)</span>
               <button 
                 id="btn-close-adjust-modal"
                 onClick={() => {

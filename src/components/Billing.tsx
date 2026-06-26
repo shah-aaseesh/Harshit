@@ -6,6 +6,7 @@ import {
   UserPlus, ShoppingCart, DollarSign, Frown, Sparkles, Ban, FileDown,
   Info, QrCode, X
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatBSDate, getTodayBS, getFiscalYear, FISCAL_YEAR_OPTIONS, NEP_MONTHS_EN } from '../utils/nepaliCalendar';
 
 export const Billing: React.FC = () => {
@@ -94,7 +95,7 @@ export const Billing: React.FC = () => {
       
       // Stock boundary evaluation
       if (nextQty > product.stockQty) {
-        alert(`Insufficient stock! ${product.name} currently has only ${product.stockQty} remaining.`);
+        toast.warning(`Insufficient stock! ${product.name} has only ${product.stockQty} ${product.unit} remaining.`);
         return;
       }
 
@@ -103,7 +104,7 @@ export const Billing: React.FC = () => {
       setCartItems(updated);
     } else {
       if (product.stockQty < 1) {
-        alert("Product is out of stock!");
+        toast.warning(`${product.name} is out of stock!`);
         return;
       }
 
@@ -129,7 +130,7 @@ export const Billing: React.FC = () => {
         
         if (nextQty < 1) return item;
         if (linkedProduct && nextQty > linkedProduct.stockQty) {
-          alert(`Insufficient physical stock units. Only ${linkedProduct.stockQty} ${linkedProduct.unit} available.`);
+          toast.warning(`Insufficient stock. Only ${linkedProduct.stockQty} ${linkedProduct.unit} available.`);
           return item;
         }
 
@@ -151,7 +152,7 @@ export const Billing: React.FC = () => {
       if (item.id === itemId) {
         const linkedProduct = products.find(p => p.id === item.productId);
         if (linkedProduct && newQty > linkedProduct.stockQty) {
-          alert(`Insufficient physical stock units. Only ${linkedProduct.stockQty} ${linkedProduct.unit} available.`);
+          toast.warning(`Insufficient stock. Only ${linkedProduct.stockQty} ${linkedProduct.unit} available.`);
           return item;
         }
 
@@ -227,7 +228,7 @@ export const Billing: React.FC = () => {
   // Submission Checkout
   const handleCheckoutSubmit = () => {
     if (cartItems.length === 0) {
-      alert("Billing basket is empty! Please click to add items.");
+      toast.warning('Billing basket is empty! Please add items before checkout.');
       return;
     }
 
@@ -284,7 +285,7 @@ export const Billing: React.FC = () => {
   // Direct mock Fonepay QR Popout with Amount for fast cashier audits
   const openFonepayQR = () => {
     if (cartGrandTotal <= 0) {
-      alert("Checkout total must be greater than Rs 0");
+      toast.warning('Checkout total must be greater than Rs 0.');
       return;
     }
     setShowQrModal(true);
@@ -293,7 +294,7 @@ export const Billing: React.FC = () => {
   // Save/Download invoice as A4 PDF document client-side using html2pdf
   const downloadInvoiceAsPdf = () => {
     if (!activePrintInvoice) {
-      alert("Print invoice target not loaded.");
+      toast.error('Print invoice target not loaded.');
       return;
     }
 
@@ -740,7 +741,7 @@ export const Billing: React.FC = () => {
       script.onerror = () => {
         const bar = document.getElementById("dynamic-pdf-loader-bar");
         if (bar) document.body.removeChild(bar);
-        alert("Failed to load PDF Renderer. Defaulting to system print.");
+        toast.error('Failed to load PDF library. Using system print instead.');
         window.print();
       };
       document.body.appendChild(script);
