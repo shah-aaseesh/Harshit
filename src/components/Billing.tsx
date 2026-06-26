@@ -6,7 +6,7 @@ import {
   UserPlus, ShoppingCart, DollarSign, Frown, Sparkles, Ban, FileDown,
   Info, QrCode, X
 } from 'lucide-react';
-import { formatBSDate, getTodayBS, getFiscalYear, FISCAL_YEAR_OPTIONS } from '../utils/nepaliCalendar';
+import { formatBSDate, getTodayBS, getFiscalYear, FISCAL_YEAR_OPTIONS, NEP_MONTHS_EN } from '../utils/nepaliCalendar';
 
 export const Billing: React.FC = () => {
   const { 
@@ -70,12 +70,18 @@ export const Billing: React.FC = () => {
 
   // Quick invoice logs filters
   const [invoiceFiscalYear, setInvoiceFiscalYear] = useState<string>('All');
+  const [invoiceMonth, setInvoiceMonth] = useState<string>('All');
   const filteredInvoices = invoices.filter(inv => {
     const matchesSearch = inv.invoiceNo.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) ||
       inv.customerName.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) ||
       (inv.customerPhone && inv.customerPhone.includes(invoiceSearchQuery));
     const matchesFY = invoiceFiscalYear === 'All' || getFiscalYear(inv.bsDate) === invoiceFiscalYear;
-    return matchesSearch && matchesFY;
+    const matchesMonth = invoiceMonth === 'All' || (() => {
+      if (!inv.bsDate || !inv.bsDate.includes('-')) return false;
+      const m = parseInt(inv.bsDate.split('-')[1]);
+      return m === (NEP_MONTHS_EN.indexOf(invoiceMonth) + 1);
+    })();
+    return matchesSearch && matchesFY && matchesMonth;
   });
 
   // Handlers for cart customization
@@ -314,34 +320,102 @@ export const Billing: React.FC = () => {
         currY += 6;
 
         // Business Details on Left
-        doc.setFont("Helvetica", "bold");
-        doc.setFontSize(14);
-        doc.setTextColor(17, 24, 39); // gray-900
-        doc.text(businessConfig.name, marginX, currY);
-        currY += 4.5;
+        if (businessConfig.logo) {
+          try {
+            // Draw logo image (15mm x 15mm)
+            doc.addImage(businessConfig.logo, 'JPEG', marginX, currY, 15, 15);
+            
+            const textStartX = marginX + 18;
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(14);
+            doc.setTextColor(17, 24, 39); // gray-900
+            doc.text(businessConfig.name, textStartX, currY + 4);
+            
+            let tempY = currY + 8.5;
+            if (businessConfig.nepaliName) {
+              doc.setFont("Helvetica", "bold");
+              doc.setFontSize(10);
+              doc.setTextColor(55, 65, 81); // Charcoal gray
+              doc.text(businessConfig.nepaliName, textStartX, tempY);
+              tempY += 4.5;
+            }
 
-        if (businessConfig.nepaliName) {
+            doc.setFont("Helvetica", "italic");
+            doc.setFontSize(8);
+            doc.setTextColor(156, 163, 175); // gray-400
+            if (businessConfig.slogan) {
+              doc.text(`"${businessConfig.slogan}"`, textStartX, tempY);
+              tempY += 4;
+            }
+
+            doc.setFont("Helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(107, 114, 128); // gray-500
+            doc.text(`Address: ${businessConfig.address}  |  Phone: ${businessConfig.phone}`, textStartX, tempY);
+            
+            currY += 18; // safe spacing after the logo block
+          } catch (err) {
+            console.error("Error drawing logo on PDF invoice", err);
+            // Fallback to standard layout
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(14);
+            doc.setTextColor(17, 24, 39); // gray-900
+            doc.text(businessConfig.name, marginX, currY);
+            currY += 4.5;
+
+            if (businessConfig.nepaliName) {
+              doc.setFont("Helvetica", "bold");
+              doc.setFontSize(10);
+              doc.setTextColor(55, 65, 81); // Charcoal gray
+              doc.text(businessConfig.nepaliName, marginX, currY);
+              currY += 4.5;
+            }
+
+            doc.setFont("Helvetica", "italic");
+            doc.setFontSize(8);
+            doc.setTextColor(156, 163, 175); // gray-400
+            if (businessConfig.slogan) {
+              doc.text(`"${businessConfig.slogan}"`, marginX, currY);
+              currY += 4;
+            }
+
+            doc.setFont("Helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(107, 114, 128); // gray-500
+            doc.text(`Address: ${businessConfig.address}`, marginX, currY);
+            currY += 4;
+            doc.text(`Phone: ${businessConfig.phone}`, marginX, currY);
+          }
+        } else {
           doc.setFont("Helvetica", "bold");
-          doc.setFontSize(10);
-          doc.setTextColor(55, 65, 81); // Charcoal gray
-          doc.text(businessConfig.nepaliName, marginX, currY);
+          doc.setFontSize(14);
+          doc.setTextColor(17, 24, 39); // gray-900
+          doc.text(businessConfig.name, marginX, currY);
           currY += 4.5;
-        }
 
-        doc.setFont("Helvetica", "italic");
-        doc.setFontSize(8);
-        doc.setTextColor(156, 163, 175); // gray-400
-        if (businessConfig.slogan) {
-          doc.text(`"${businessConfig.slogan}"`, marginX, currY);
+          if (businessConfig.nepaliName) {
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(10);
+            doc.setTextColor(55, 65, 81); // Charcoal gray
+            doc.text(businessConfig.nepaliName, marginX, currY);
+            currY += 4.5;
+          }
+
+          doc.setFont("Helvetica", "italic");
+          doc.setFontSize(8);
+          doc.setTextColor(156, 163, 175); // gray-400
+          if (businessConfig.slogan) {
+            doc.text(`"${businessConfig.slogan}"`, marginX, currY);
+            currY += 4;
+          }
+
+          doc.setFont("Helvetica", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(107, 114, 128); // gray-500
+          doc.text(`Address: ${businessConfig.address}`, marginX, currY);
           currY += 4;
+          doc.text(`Phone: ${businessConfig.phone}`, marginX, currY);
         }
-
-        doc.setFont("Helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(107, 114, 128); // gray-500
-        doc.text(`Address: ${businessConfig.address}`, marginX, currY);
-        currY += 4;
-        doc.text(`Phone: ${businessConfig.phone}`, marginX, currY);
 
         // Right side metadata
         const metaX = 135;
@@ -1314,7 +1388,7 @@ export const Billing: React.FC = () => {
             </div>
 
             {/* Fiscal Year Filter Selector */}
-            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-150 rounded-lg px-2.5 py-1.5 text-xs" id="invoice-history-fy-wrapper">
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-150 rounded-lg px-2.5 py-1.5 text-xs shrink-0" id="invoice-history-fy-wrapper">
               <span className="text-gray-400 font-bold select-none">FY:</span>
               <select
                 id="select-invoice-history-fy"
@@ -1324,6 +1398,22 @@ export const Billing: React.FC = () => {
               >
                 {FISCAL_YEAR_OPTIONS.map(fy => (
                   <option key={fy} value={fy}>{fy === 'All' ? 'All Fiscal Years' : `FY ${fy}`}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Month Filter Selector */}
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-150 rounded-lg px-2.5 py-1.5 text-xs shrink-0" id="invoice-history-month-wrapper">
+              <span className="text-gray-400 font-bold select-none">Month:</span>
+              <select
+                id="select-invoice-history-month"
+                value={invoiceMonth}
+                onChange={(e) => setInvoiceMonth(e.target.value)}
+                className="bg-transparent font-extrabold text-gray-800 outline-none cursor-pointer"
+              >
+                <option value="All">All Months</option>
+                {NEP_MONTHS_EN.map(m => (
+                  <option key={m} value={m}>{m}</option>
                 ))}
               </select>
             </div>
@@ -1606,22 +1696,32 @@ export const Billing: React.FC = () => {
               <div className="h-1 bg-red-700 w-full mb-1"></div>
               <div className="h-0.5 bg-blue-700 w-full mb-4"></div>
 
-              {/* Headings */}
+               {/* Headings */}
               <div className="flex flex-col sm:flex-row justify-between items-start gap-4" id="bill-print-header">
-                <div>
-                  <h1 className="text-xl font-black tracking-tight text-gray-900 uppercase font-sans">
-                    {businessConfig.name}
-                  </h1>
-                  {businessConfig.nepaliName && (
-                    <p className="text-sm font-semibold text-gray-800 font-sans mt-0.5 mb-1 text-red-700">
-                      {businessConfig.nepaliName}
-                    </p>
+                <div className="flex items-center gap-3">
+                  {businessConfig.logo && (
+                    <img 
+                      src={businessConfig.logo} 
+                      alt="Business Logo" 
+                      className="h-14 w-14 object-contain rounded-lg border border-gray-150 p-1 bg-white shrink-0" 
+                      referrerPolicy="no-referrer" 
+                    />
                   )}
-                  <p className="text-[10px] text-gray-500 leading-snug">
-                    {businessConfig.slogan && <span className="italic block mb-0.5 text-gray-400">"{businessConfig.slogan}"</span>}
-                    Address: {businessConfig.address}<br />
-                    Phone: {businessConfig.phone}
-                  </p>
+                  <div>
+                    <h1 className="text-xl font-black tracking-tight text-gray-900 uppercase font-sans">
+                      {businessConfig.name}
+                    </h1>
+                    {businessConfig.nepaliName && (
+                      <p className="text-sm font-semibold text-gray-800 font-sans mt-0.5 mb-1 text-red-700">
+                        {businessConfig.nepaliName}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-gray-500 leading-snug">
+                      {businessConfig.slogan && <span className="italic block mb-0.5 text-gray-400">"{businessConfig.slogan}"</span>}
+                      Address: {businessConfig.address}<br />
+                      Phone: {businessConfig.phone}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="text-left sm:text-right text-[10px] text-gray-500 space-y-0.5" id="bill-meta-right">

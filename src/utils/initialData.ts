@@ -1,17 +1,18 @@
 import { Product, Customer, Supplier, Expense, Invoice, Purchase, JournalEntry, BusinessConfig } from '../types';
 
 export const INITIAL_BUSINESS_CONFIG: BusinessConfig = {
-  name: "My Business",
-  nepaliName: "",
-  address: "Kathmandu, Nepal",
-  phone: "",
-  panVat: "",
-  isVatRegistered: false,
+  name: "Sagarmatha Stationery Center",
+  nepaliName: "सगरमाथा स्टेशनरी सेन्टर",
+  address: "Putalisadak, Kathmandu, Nepal",
+  phone: "+977-1-4432100",
+  panVat: "301556782",
+  isVatRegistered: true,
   vatRate: 13,
-  slogan: "Sajilo Accounting & Bookkeeping",
+  slogan: "Premium Office, School & Art Supplies",
   invoiceHeaderNotes: "Authorized Signature Required.",
   invoiceFooterNotes: "Thank you for your business! धन्यवाद।",
   currencySymbol: "Rs.",
+  logo: "",
 };
 
 export const INITIAL_PRODUCTS: Product[] = [];

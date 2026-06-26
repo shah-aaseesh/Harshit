@@ -3,14 +3,14 @@ import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { 
   Plus, Search, Edit2, AlertTriangle, Layers, ArrowUpRight, ArrowDownRight, 
-  History, Settings, BookOpen, Trash, Database, Info, Filter
+  History, Settings, BookOpen, Trash, Database, Info, Filter, Printer
 } from 'lucide-react';
 import { formatBSDate, getTodayBS } from '../utils/nepaliCalendar';
 
 export const Inventory: React.FC = () => {
   const { 
     products, stockMovements, submitProduct, adjustStockQuantity, 
-    currentUserRole, invoices, setProducts
+    currentUserRole, invoices, setProducts, businessConfig
   } = useApp();
 
   // Selected tab: 'roster' | 'movements'
@@ -25,6 +25,10 @@ export const Inventory: React.FC = () => {
   const [showAdjustStockModal, setShowAdjustStockModal] = useState<boolean>(false);
   const [selectedProductToAdjust, setSelectedProductToAdjust] = useState<Product | null>(null);
 
+  // Printing state
+  const [showPrintStockModal, setShowPrintStockModal] = useState<boolean>(false);
+  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('landscape');
+
   // Edit/Delete Modals state
   const [showEditProductModal, setShowEditProductModal] = useState<boolean>(false);
   const [selectedProductToEdit, setSelectedProductToEdit] = useState<Product | null>(null);
@@ -35,7 +39,7 @@ export const Inventory: React.FC = () => {
   const [newName, setNewName] = useState<string>('');
   const [newNepaliName, setNewNepaliName] = useState<string>('');
   const [newSku, setNewSku] = useState<string>('');
-  const [newCategory, setNewCategory] = useState<string>('Kitchenware');
+  const [newCategory, setNewCategory] = useState<string>('Notebooks & Diaries');
   const [newUnit, setNewUnit] = useState<string>('pcs');
   const [newPurchasePrice, setNewPurchasePrice] = useState<number>(0);
   const [newSellingPrice, setNewSellingPrice] = useState<number>(0);
@@ -60,8 +64,23 @@ export const Inventory: React.FC = () => {
   const [adjustReason, setAdjustReason] = useState<string>('Physical Count Surplus');
   const [adjustType, setAdjustType] = useState<'add' | 'sub'>('add');
 
-  // Master Categories list based on active products
-  const categoriesList = ['All', ...Array.from(new Set(products.map(p => p.category)))];
+  // Default Stationery Categories
+  const DEFAULT_STATIONERY_CATEGORIES = [
+    'Notebooks & Diaries',
+    'Pens, Pencils & Markers',
+    'Paper & Envelopes',
+    'Desk Organizers',
+    'Art & Craft Supplies',
+    'Office Stationery',
+    'School Stationery',
+    'Binding & Laminating'
+  ];
+
+  // Master Categories list based on active products and defaults
+  const categoriesList = ['All', ...Array.from(new Set([
+    ...DEFAULT_STATIONERY_CATEGORIES,
+    ...products.map(p => p.category)
+  ]))];
 
   // Filtering products
   const filteredProducts = products.filter(p => {
@@ -99,7 +118,7 @@ export const Inventory: React.FC = () => {
     setNewName('');
     setNewNepaliName('');
     setNewSku('');
-    setNewCategory('Kitchenware');
+    setNewCategory('Notebooks & Diaries');
     setNewUnit('pcs');
     setNewPurchasePrice(0);
     setNewSellingPrice(0);
@@ -191,6 +210,104 @@ export const Inventory: React.FC = () => {
     setProducts(updatedProducts);
     setShowDeleteModal(false);
     setSelectedProductToDelete(null);
+  };
+
+  const triggerPrintForElement = (elementId: string, titleName: string, orientation: 'portrait' | 'landscape' = 'portrait') => {
+    const el = document.getElementById(elementId);
+    if (!el) {
+      window.print();
+      return;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.zIndex = "-9999";
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) {
+      window.print();
+      return;
+    }
+
+    let styleTagsHtml = "";
+    document.querySelectorAll("style, link[rel='stylesheet']").forEach(styles => {
+      styleTagsHtml += styles.outerHTML;
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${titleName}</title>
+          ${styleTagsHtml}
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+            body {
+              font-family: 'Inter', sans-serif;
+              background-color: white !important;
+              color: #000000 !important;
+              margin: 0;
+              padding: 24px;
+            }
+            #${elementId} {
+              border: none !important;
+              box-shadow: none !important;
+              width: 100% !important;
+              padding: 0 !important;
+            }
+            @page {
+              size: A4 ${orientation};
+              margin: 15mm;
+            }
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                filter: grayscale(100%) !important;
+                -webkit-filter: grayscale(100%) !important;
+              }
+              * {
+                color: #000000 !important;
+                text-shadow: none !important;
+                box-shadow: none !important;
+              }
+              button, .no-print {
+                display: none !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div id="${elementId}">
+            ${el.innerHTML}
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                try {
+                  window.print();
+                } catch(e) {
+                  console.error(e);
+                }
+                setTimeout(function() {
+                  window.frameElement.remove();
+                }, 100);
+              }, 300);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    iframeDoc.open();
+    iframeDoc.write(htmlContent);
+    iframeDoc.close();
   };
 
   return (
@@ -291,16 +408,29 @@ export const Inventory: React.FC = () => {
               </div>
             </div>
 
-            {/* Create Action Button based on permissions (Owner / Manager can write) */}
-            {currentUserRole !== 'Staff' && (
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto" id="roster-top-actions">
               <button
-                id="btn-add-product-modal"
-                onClick={() => setShowAddProductModal(true)}
-                className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs hover:bg-blue-700 transition"
+                id="btn-print-stock-report"
+                onClick={() => {
+                  setPrintOrientation('landscape');
+                  setShowPrintStockModal(true);
+                }}
+                className="w-full sm:w-auto px-4.5 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-250 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95"
+                title="Print Inventory Stock & Valuation Record"
               >
-                <Plus className="h-4 w-4" /> Add Product SKU
+                <Printer className="h-4 w-4 text-gray-500" />
+                <span>स्टक विवरण (Print Report)</span>
               </button>
-            )}
+              {currentUserRole !== 'Staff' && (
+                <button
+                  id="btn-add-product-modal"
+                  onClick={() => setShowAddProductModal(true)}
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs hover:bg-blue-700 transition"
+                >
+                  <Plus className="h-4 w-4" /> Add Product SKU
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Products Catalog Table list */}
@@ -502,7 +632,7 @@ export const Inventory: React.FC = () => {
                     type="text"
                     id="input-product-name-en"
                     required
-                    placeholder="e.g. Kathmandu Organic Khuwa"
+                    placeholder="e.g. A4 Premium Photocopy Paper"
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                     className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500"
@@ -514,7 +644,7 @@ export const Inventory: React.FC = () => {
                   <input
                     type="text"
                     id="input-product-name-np"
-                    placeholder="e.g. काठमाडौं प्राङ्गारिक खुवा"
+                    placeholder="e.g. ए४ फोटोकपी पेपर"
                     value={newNepaliName}
                     onChange={(e) => setNewNepaliName(e.target.value)}
                     className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500"
@@ -529,7 +659,7 @@ export const Inventory: React.FC = () => {
                     type="text"
                     id="input-product-sku"
                     required
-                    placeholder="e.g. KHUWA-KTM-01"
+                    placeholder="e.g. PAPER-A4-01"
                     value={newSku}
                     onChange={(e) => setNewSku(e.target.value)}
                     className="w-full border border-gray-200 rounded-lg p-2 font-mono uppercase outline-none focus:ring-1 focus:ring-blue-500"
@@ -537,19 +667,22 @@ export const Inventory: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-gray-605 block">Category</label>
-                  <select
+                  <label className="text-gray-605 block">Category *</label>
+                  <input
+                    type="text"
                     id="select-product-category"
+                    required
+                    list="product-categories-datalist"
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg p-2 outline-none bg-white focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="Kitchenware">Kitchenware</option>
-                    <option value="Clothing">Clothing Cashmere</option>
-                    <option value="Beverages">Beverages & Drinks</option>
-                    <option value="Groceries">Groceries & Foods</option>
-                    <option value="Fruits">Fresh Fruits Farms</option>
-                  </select>
+                    placeholder="e.g. Notebooks & Diaries"
+                    className="w-full border border-gray-200 rounded-lg p-2 outline-none bg-white focus:ring-1 focus:ring-blue-500 font-medium"
+                  />
+                  <datalist id="product-categories-datalist">
+                    {categoriesList.filter(c => c !== 'All').map(cat => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="space-y-1">
@@ -776,7 +909,7 @@ export const Inventory: React.FC = () => {
                     type="text"
                     id="edit-input-product-name-en"
                     required
-                    placeholder="e.g. Kathmandu Organic Khuwa"
+                    placeholder="e.g. A4 Premium Photocopy Paper"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500"
@@ -788,7 +921,7 @@ export const Inventory: React.FC = () => {
                   <input
                     type="text"
                     id="edit-input-product-name-np"
-                    placeholder="e.g. काठमाडौं प्राङ्गारिक खुवा"
+                    placeholder="e.g. ए४ फोटोकपी पेपर"
                     value={editNepaliName}
                     onChange={(e) => setEditNepaliName(e.target.value)}
                     className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500"
@@ -803,7 +936,7 @@ export const Inventory: React.FC = () => {
                     type="text"
                     id="edit-input-product-sku"
                     required
-                    placeholder="e.g. KHUWA-KTM-01"
+                    placeholder="e.g. PAPER-A4-01"
                     value={editSku}
                     onChange={(e) => setEditSku(e.target.value)}
                     className="w-full border border-gray-200 rounded-lg p-2 font-mono uppercase outline-none focus:ring-1 focus:ring-blue-500"
@@ -811,19 +944,17 @@ export const Inventory: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-gray-655 block">Category</label>
-                  <select
+                  <label className="text-gray-655 block">Category *</label>
+                  <input
+                    type="text"
                     id="edit-select-product-category"
+                    required
+                    list="product-categories-datalist"
                     value={editCategory}
                     onChange={(e) => setEditCategory(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg p-2 outline-none bg-white focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="Kitchenware">Kitchenware</option>
-                    <option value="Clothing">Clothing Cashmere</option>
-                    <option value="Beverages">Beverages & Drinks</option>
-                    <option value="Groceries">Groceries & Foods</option>
-                    <option value="Fruits">Fresh Fruits Farms</option>
-                  </select>
+                    placeholder="e.g. Notebooks & Diaries"
+                    className="w-full border border-gray-200 rounded-lg p-2 outline-none bg-white focus:ring-1 focus:ring-blue-500 font-medium"
+                  />
                 </div>
 
                 <div className="space-y-1">
@@ -996,6 +1127,191 @@ export const Inventory: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* MODAL: NEPAL INVENTORY STOCK LEDGER (जिन्सी मौज्दात विवरण) PRINT HUB */}
+      {showPrintStockModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto" id="modal-stock-print">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 space-y-4 border text-left" id="stock-print-container">
+            
+            {/* Action Bar */}
+            <div className="flex flex-wrap justify-between items-center gap-3 border-b pb-3" id="stock-print-action-bar">
+              <div>
+                <h3 className="font-bold text-gray-900 text-xs uppercase tracking-wider">Nepal Inventory Stock & Valuation (जिन्सी मौज्दात प्रतिवेदन)</h3>
+                <p className="text-[10px] text-gray-450 font-medium">Standardized stock list, asset valuation, and trading margin summary for Nepalese auditing compliance</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-gray-500">Orientation:</span>
+                <button 
+                  onClick={() => setPrintOrientation('portrait')}
+                  className={`px-2.5 py-1 text-[10px] font-extrabold rounded-md border transition ${
+                    printOrientation === 'portrait' 
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs' 
+                      : 'bg-white text-gray-700 border-gray-250 hover:bg-gray-50'
+                  }`}
+                >
+                  Portrait (ठाडो)
+                </button>
+                <button 
+                  onClick={() => setPrintOrientation('landscape')}
+                  className={`px-2.5 py-1 text-[10px] font-extrabold rounded-md border transition ${
+                    printOrientation === 'landscape' 
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs' 
+                      : 'bg-white text-gray-700 border-gray-250 hover:bg-gray-50'
+                  }`}
+                >
+                  Landscape (तेर्सो) - Best
+                </button>
+                <button
+                  id="btn-trigger-stock-print"
+                  onClick={() => triggerPrintForElement('stock-ledger-print-content', 'Inventory Stock Report', printOrientation)}
+                  className="flex items-center gap-1 px-3 py-1 bg-emerald-600 text-white text-[10px] font-black rounded-lg hover:bg-emerald-700 transition shadow-xs"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Print Report
+                </button>
+                <button 
+                  onClick={() => setShowPrintStockModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xs px-2 font-bold"
+                >
+                  Close ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Print Sheet Area */}
+            <div className="bg-gray-50 border p-4 rounded-xl max-h-[60vh] overflow-y-auto" id="stock-preview-viewport">
+              <div 
+                id="stock-ledger-print-content" 
+                className="bg-white border p-6 mx-auto shadow-sm text-gray-900 text-xs leading-relaxed" 
+                style={{ width: '100%', maxWidth: printOrientation === 'portrait' ? '650px' : '100%', minHeight: '500px' }}
+              >
+                
+                {/* Header Information */}
+                <div className="text-center space-y-1.5 border-b-2 border-double border-gray-800 pb-3" id="stock-sheet-header">
+                  {businessConfig.logo && (
+                    <img src={businessConfig.logo} alt="Company Logo" className="h-10 mx-auto object-contain mb-1" referrerPolicy="no-referrer" />
+                  )}
+                  <h1 className="text-sm font-black text-gray-950 uppercase">{businessConfig.nepaliName || businessConfig.name}</h1>
+                  <p className="text-[10px] text-gray-500 font-semibold">{businessConfig.address}</p>
+                  <p className="text-[10px] text-gray-500 font-mono">फोन नं: {businessConfig.phone} | PAN/VAT No: {businessConfig.panVat || 'N/A'}</p>
+                  
+                  <div className="pt-2">
+                    <span className="inline-block px-4 py-1 border border-gray-900 text-[11px] font-black tracking-widest uppercase rounded">
+                      जिन्सी मौज्दात तथा मूल्यांकन प्रतिवेदन (STOCK LEDGER & VALUATION REPORT)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Meta Rows */}
+                <div className="grid grid-cols-2 justify-between items-center text-[10px] py-3 font-semibold border-b border-gray-200" id="stock-sheet-meta">
+                  <div className="space-y-1 text-left">
+                    <p><span className="text-gray-500">प्रतिवेदन वर्ग (Category):</span> <span className="font-bold text-gray-900">{selectedCategory}</span></p>
+                    <p><span className="text-gray-500">कुल वस्तु सङ्ख्या (SKUs):</span> <span className="font-bold text-gray-900 font-mono">{filteredProducts.length}</span></p>
+                  </div>
+                  <div className="space-y-1 text-right">
+                    <p><span className="text-gray-500">मिति (BS Date):</span> <span className="font-mono text-gray-900">{getTodayBS()}</span></p>
+                    <p><span className="text-gray-500">मिति (AD Date):</span> <span className="font-mono text-gray-900">{new Date().toISOString().split('T')[0]}</span></p>
+                  </div>
+                </div>
+
+                {/* Valuation Summary Blocks inside Sheet */}
+                <div className="grid grid-cols-3 gap-2 py-3 border-b border-gray-200 text-center font-bold text-[9px] text-gray-600 bg-gray-50 p-2 rounded-lg my-3" id="stock-summary-sheet-box">
+                  <div>
+                    <span className="block text-gray-450 uppercase">कुल मौज्दात मूल्य (Total Valuation):</span>
+                    <span className="block text-[11px] font-black text-gray-950 font-mono mt-0.5">Rs. {filteredProducts.reduce((sum, p) => sum + (p.stockQty * p.purchasePrice), 0).toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="block text-gray-450 uppercase">कुल बिक्री मूल्य (Retail Valuation):</span>
+                    <span className="block text-[11px] font-black text-blue-700 font-mono mt-0.5">Rs. {filteredProducts.reduce((sum, p) => sum + (p.stockQty * p.sellingPrice), 0).toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="block text-gray-450 uppercase">अनुमानित नाफा (Potential Profit Margin):</span>
+                    <span className="block text-[11px] font-black text-emerald-700 font-mono mt-0.5">Rs. {filteredProducts.reduce((sum, p) => sum + (p.stockQty * (p.sellingPrice - p.purchasePrice)), 0).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Stock Table */}
+                <div className="mt-4 border border-gray-800 rounded-lg overflow-hidden text-[9px]" id="stock-table-wrapper">
+                  <table className="w-full text-left border-collapse" id="stock-print-table">
+                    <thead>
+                      <tr className="bg-gray-100 text-gray-900 font-bold border-b border-gray-800 uppercase">
+                        <th id="th-stk-sn" className="p-1.5 border-r border-gray-800 w-10 text-center">क्र.सं. (S.N)</th>
+                        <th id="th-stk-sku" className="p-1.5 border-r border-gray-800 w-20">SKU</th>
+                        <th id="th-stk-name" className="p-1.5 border-r border-gray-800">विवरण (Product Name)</th>
+                        <th id="th-stk-cat" className="p-1.5 border-r border-gray-800 w-24">वर्ग (Category)</th>
+                        <th id="th-stk-qty" className="p-1.5 border-r border-gray-800 text-center w-20">मौज्दात परिमाण (Qty)</th>
+                        <th id="th-stk-cost" className="p-1.5 border-r border-gray-800 text-right w-20">खरिद दर (Cost Rate)</th>
+                        <th id="th-stk-sell" className="p-1.5 border-r border-gray-800 text-right w-20">बिक्री दर (Sell Rate)</th>
+                        <th id="th-stk-tot" className="p-1.5 text-right w-24">कुल मौज्दात मूल्य (Total Value)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-300 font-medium" id="stock-print-tbody">
+                      {filteredProducts.map((p, idx) => {
+                        const costValue = p.stockQty * p.purchasePrice;
+                        return (
+                          <tr key={p.id} className="align-middle">
+                            <td className="p-1.5 border-r border-gray-800 text-center font-mono">{idx + 1}</td>
+                            <td className="p-1.5 border-r border-gray-800 font-mono text-gray-700">{p.sku}</td>
+                            <td className="p-1.5 border-r border-gray-800 font-semibold">
+                              {p.name} {p.nepaliName && <span className="text-[8px] text-gray-500">({p.nepaliName})</span>}
+                            </td>
+                            <td className="p-1.5 border-r border-gray-800 text-gray-600">{p.category}</td>
+                            <td className="p-1.5 border-r border-gray-800 text-center font-mono font-bold">
+                              {p.stockQty} <span className="text-[8px] text-gray-400 font-normal">{p.unit}</span>
+                            </td>
+                            <td className="p-1.5 border-r border-gray-800 text-right font-mono">Rs. {p.purchasePrice.toLocaleString()}</td>
+                            <td className="p-1.5 border-r border-gray-800 text-right font-mono">Rs. {p.sellingPrice.toLocaleString()}</td>
+                            <td className="p-1.5 text-right font-mono font-bold text-gray-950">Rs. {costValue.toLocaleString()}</td>
+                          </tr>
+                        );
+                      })}
+                      {filteredProducts.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="p-4 text-center text-gray-400 font-semibold">
+                            No products matching filters currently configured in catalog database.
+                          </td>
+                        </tr>
+                      )}
+                      {/* Total valuation row */}
+                      <tr className="bg-gray-100 font-bold border-t border-gray-800 text-[10px]">
+                        <td colSpan={4} className="p-2 border-r border-gray-800 text-right uppercase">
+                          जम्मा मौज्दात मूल्यांकन (Total Asset Cost Value):
+                        </td>
+                        <td className="p-2 border-r border-gray-800 text-center font-mono font-black text-gray-950">
+                          {filteredProducts.reduce((sum, p) => sum + p.stockQty, 0)}
+                        </td>
+                        <td className="p-2 border-r border-gray-800"></td>
+                        <td className="p-2 border-r border-gray-800"></td>
+                        <td className="p-2 text-right font-mono font-black text-gray-950">
+                          Rs. {filteredProducts.reduce((sum, p) => sum + (p.stockQty * p.purchasePrice), 0).toLocaleString()}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Footnote details */}
+                <div className="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-dashed text-[8px] text-gray-500" id="stock-footers">
+                  <div className="text-left">
+                    <p>टिप्पणी: जिन्सी शाखाका कर्मचारीले मौज्दात परिमाण भौतिक गणना (Physical stock count) गरी प्रमाणित गरेको हुनुपर्नेछ ।</p>
+                  </div>
+                  <div className="text-right font-bold space-y-4">
+                    <div className="h-6"></div>
+                    <p className="border-t border-gray-400 pt-1.5 inline-block w-48 text-center">जिन्सी प्रमुखको हस्ताक्षर (Store Keeper Sign)</p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Hint box */}
+            <div className="p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] text-blue-800 flex items-center gap-1.5 font-medium leading-relaxed" id="stock-print-help">
+              <span>💡 Stock and valuation statements containing multiple SKU cost rates are best printed in <strong>Landscape</strong> layout to align table widths cleanly.</span>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

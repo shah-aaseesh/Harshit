@@ -3,16 +3,17 @@ import { useApp } from '../context/AppContext';
 import { Expense } from '../types';
 import { 
   DollarSign, Plus, Eye, Calendar, Tag, CreditCard, HelpCircle, 
-  Trash2, Filter, Receipt, ChevronRight, TrendingDown
+  Trash2, Filter, Receipt, ChevronRight, TrendingDown, Printer
 } from 'lucide-react';
-import { formatBSDate, getTodayBS, getFiscalYear, FISCAL_YEAR_OPTIONS } from '../utils/nepaliCalendar';
+import { formatBSDate, getTodayBS, getFiscalYear, FISCAL_YEAR_OPTIONS, NEP_MONTHS_EN, numberToWords } from '../utils/nepaliCalendar';
 
 export const Expenses: React.FC = () => {
-  const { expenses, submitExpense, currentUserRole, setExpenses } = useApp();
+  const { expenses, submitExpense, currentUserRole, setExpenses, businessConfig } = useApp();
 
   // Search/Filters states
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [filterFiscalYear, setFilterFiscalYear] = useState<string>('All');
+  const [filterMonth, setFilterMonth] = useState<string>('All');
   const [expenseTitle, setExpenseTitle] = useState<string>('');
   const [expenseAmount, setExpenseAmount] = useState<number>(0);
   const [expenseCategory, setExpenseCategory] = useState<Expense['category']>('Utilities');
@@ -22,6 +23,10 @@ export const Expenses: React.FC = () => {
   // Modal toggle
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
 
+  // Printing states
+  const [selectedExpenseForPrint, setSelectedExpenseForPrint] = useState<Expense | null>(null);
+  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait');
+
   // Group of Categories
   const CATEGORIES: Expense['category'][] = [
     'Rent', 'Salary', 'Utilities', 'Transportation', 'Marketing', 'Refreshment', 'Miscellaneous'
@@ -30,7 +35,12 @@ export const Expenses: React.FC = () => {
   const filteredExpenses = expenses.filter(exp => {
     const matchesCategory = filterCategory === 'All' || exp.category === filterCategory;
     const matchesFY = filterFiscalYear === 'All' || getFiscalYear(exp.bsDate) === filterFiscalYear;
-    return matchesCategory && matchesFY;
+    const matchesMonth = filterMonth === 'All' || (() => {
+      if (!exp.bsDate || !exp.bsDate.includes('-')) return false;
+      const m = parseInt(exp.bsDate.split('-')[1]);
+      return m === (NEP_MONTHS_EN.indexOf(filterMonth) + 1);
+    })();
+    return matchesCategory && matchesFY && matchesMonth;
   });
 
   const totalFilteredSum = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -66,6 +76,104 @@ export const Expenses: React.FC = () => {
       setExpenses(updated);
       localStorage.setItem('sb_expenses', JSON.stringify(updated));
     }
+  };
+
+  const triggerPrintForElement = (elementId: string, titleName: string, orientation: 'portrait' | 'landscape' = 'portrait') => {
+    const el = document.getElementById(elementId);
+    if (!el) {
+      window.print();
+      return;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.zIndex = "-9999";
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) {
+      window.print();
+      return;
+    }
+
+    let styleTagsHtml = "";
+    document.querySelectorAll("style, link[rel='stylesheet']").forEach(styles => {
+      styleTagsHtml += styles.outerHTML;
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${titleName}</title>
+          ${styleTagsHtml}
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+            body {
+              font-family: 'Inter', sans-serif;
+              background-color: white !important;
+              color: #000000 !important;
+              margin: 0;
+              padding: 24px;
+            }
+            #${elementId} {
+              border: none !important;
+              box-shadow: none !important;
+              width: 100% !important;
+              padding: 0 !important;
+            }
+            @page {
+              size: A4 ${orientation};
+              margin: 15mm;
+            }
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                filter: grayscale(100%) !important;
+                -webkit-filter: grayscale(100%) !important;
+              }
+              * {
+                color: #000000 !important;
+                text-shadow: none !important;
+                box-shadow: none !important;
+              }
+              button, .no-print {
+                display: none !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div id="${elementId}">
+            ${el.innerHTML}
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                try {
+                  window.print();
+                } catch(e) {
+                  console.error(e);
+                }
+                setTimeout(function() {
+                  window.frameElement.remove();
+                }, 100);
+              }, 300);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    iframeDoc.open();
+    iframeDoc.write(htmlContent);
+    iframeDoc.close();
   };
 
   return (
@@ -143,6 +251,22 @@ export const Expenses: React.FC = () => {
               ))}
             </select>
           </div>
+
+          <div className="flex items-center gap-2">
+            <Calendar className="h-3.5 w-3.5 text-gray-400" />
+            <span className="text-xs font-semibold text-gray-650">Month:</span>
+            <select
+              id="filter-expense-month-select"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg p-2 outline-none bg-white font-extrabold text-gray-800"
+            >
+              <option value="All">All Months</option>
+              {NEP_MONTHS_EN.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -190,14 +314,27 @@ export const Expenses: React.FC = () => {
                       Rs. {exp.amount.toLocaleString()}
                     </td>
                     <td className="p-4 text-center">
-                      <button
-                        id={`btn-delete-expense-${exp.id}`}
-                        onClick={() => deleteExpenseLog(exp.id)}
-                        disabled={currentUserRole !== 'Owner'}
-                        className="p-1.5 hover:bg-rose-50 rounded text-gray-400 hover:text-rose-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5" id={`manage-expense-grp-${exp.id}`}>
+                        <button
+                          id={`btn-print-expense-${exp.id}`}
+                          onClick={() => {
+                            setSelectedExpenseForPrint(exp);
+                            setPrintOrientation('portrait');
+                          }}
+                          className="p-1.5 hover:bg-blue-50 rounded text-gray-400 hover:text-blue-600 transition"
+                          title="Print Expense Voucher (खर्च भौचर)"
+                        >
+                          <Printer className="h-4 w-4" />
+                        </button>
+                        <button
+                          id={`btn-delete-expense-${exp.id}`}
+                          onClick={() => deleteExpenseLog(exp.id)}
+                          disabled={currentUserRole !== 'Owner'}
+                          className="p-1.5 hover:bg-rose-50 rounded text-gray-400 hover:text-rose-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -300,6 +437,158 @@ export const Expenses: React.FC = () => {
                 Log Operational spend
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: NEPAL EXPENSE VOUCHER (खर्च भौचर) PRINT HUB */}
+      {selectedExpenseForPrint && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto" id="modal-expense-print">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 space-y-4 border text-left" id="expense-print-container">
+            
+            {/* Action Bar */}
+            <div className="flex flex-wrap justify-between items-center gap-3 border-b pb-3" id="expense-print-action-bar">
+              <div>
+                <h3 className="font-bold text-gray-900 text-xs uppercase tracking-wider">Nepal Expense Payment Voucher (खर्च भौचर)</h3>
+                <p className="text-[10px] text-gray-450 font-medium">Standardized payment dispatch voucher for Nepalese auditing compliance</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-gray-500">Orientation:</span>
+                <button 
+                  onClick={() => setPrintOrientation('portrait')}
+                  className={`px-2.5 py-1 text-[10px] font-extrabold rounded-md border transition ${
+                    printOrientation === 'portrait' 
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs' 
+                      : 'bg-white text-gray-700 border-gray-250 hover:bg-gray-50'
+                  }`}
+                >
+                  Portrait (ठाडो) - Best
+                </button>
+                <button 
+                  onClick={() => setPrintOrientation('landscape')}
+                  className={`px-2.5 py-1 text-[10px] font-extrabold rounded-md border transition ${
+                    printOrientation === 'landscape' 
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs' 
+                      : 'bg-white text-gray-700 border-gray-250 hover:bg-gray-50'
+                  }`}
+                >
+                  Landscape (तेर्सो)
+                </button>
+                <button
+                  id="btn-trigger-expense-print"
+                  onClick={() => triggerPrintForElement('expense-voucher-print-content', 'Expense Voucher', printOrientation)}
+                  className="flex items-center gap-1 px-3 py-1 bg-emerald-600 text-white text-[10px] font-black rounded-lg hover:bg-emerald-700 transition shadow-xs"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Print Voucher
+                </button>
+                <button 
+                  onClick={() => setSelectedExpenseForPrint(null)}
+                  className="text-gray-400 hover:text-gray-600 text-xs px-2"
+                >
+                  Close ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Print Sheet Area */}
+            <div className="bg-gray-50 border p-4 rounded-xl max-h-[60vh] overflow-y-auto" id="expense-preview-viewport">
+              <div 
+                id="expense-voucher-print-content" 
+                className="bg-white border p-6 mx-auto shadow-sm text-gray-900 text-xs leading-relaxed" 
+                style={{ width: '100%', maxWidth: printOrientation === 'portrait' ? '650px' : '100%', minHeight: '400px' }}
+              >
+                
+                {/* Header Information */}
+                <div className="text-center space-y-1.5 border-b-2 border-double border-gray-800 pb-3" id="exp-sheet-header">
+                  {businessConfig.logo && (
+                    <img src={businessConfig.logo} alt="Company Logo" className="h-10 mx-auto object-contain mb-1" referrerPolicy="no-referrer" />
+                  )}
+                  <h1 className="text-sm font-black text-gray-950 uppercase">{businessConfig.nepaliName || businessConfig.name}</h1>
+                  <p className="text-[10px] text-gray-500 font-semibold">{businessConfig.address}</p>
+                  <p className="text-[10px] text-gray-500 font-mono">फोन नं: {businessConfig.phone} | PAN/VAT No: {businessConfig.panVat || 'N/A'}</p>
+                  
+                  <div className="pt-2">
+                    <span className="inline-block px-4 py-1 border border-gray-900 text-[11px] font-black tracking-widest uppercase rounded">
+                      खर्च भुक्तानी भौचर (EXPENSE PAYMENT VOUCHER)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Meta Rows */}
+                <div className="grid grid-cols-2 justify-between items-center text-[10px] py-3 font-semibold border-b border-gray-200" id="exp-sheet-meta">
+                  <div className="space-y-1 text-left">
+                    <p><span className="text-gray-500">भौचर नं. (Voucher No):</span> <span className="font-mono font-bold text-gray-900">EXP-{selectedExpenseForPrint.id.slice(0, 8).toUpperCase()}</span></p>
+                    <p><span className="text-gray-500">आन्तरिक संकेत (ID):</span> <span className="font-mono text-gray-800">{selectedExpenseForPrint.id}</span></p>
+                  </div>
+                  <div className="space-y-1 text-right">
+                    <p><span className="text-gray-500">मिति (BS Date):</span> <span className="font-mono text-gray-900">{selectedExpenseForPrint.bsDate}</span></p>
+                    <p><span className="text-gray-500">मिति (AD Date):</span> <span className="font-mono text-gray-900">{selectedExpenseForPrint.date}</span></p>
+                  </div>
+                </div>
+
+                {/* Main Payment Details Form */}
+                <div className="mt-4 border border-gray-800 rounded-lg p-4 space-y-3.5 text-[10px]" id="exp-body-details">
+                  <div className="flex border-b border-gray-200 pb-2">
+                    <span className="w-48 text-gray-500 font-extrabold uppercase">भुक्तानी विधि (Payment Mode):</span>
+                    <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{selectedExpenseForPrint.paymentMethod}</span>
+                  </div>
+
+                  <div className="flex border-b border-gray-200 pb-2">
+                    <span className="w-48 text-gray-500 font-extrabold uppercase">खर्च शीर्षक (Sector Heading):</span>
+                    <span className="font-bold text-gray-900">{selectedExpenseForPrint.category} (परिचालन शीर्षक)</span>
+                  </div>
+
+                  <div className="flex border-b border-gray-200 pb-2">
+                    <span className="w-48 text-gray-500 font-extrabold uppercase">विवरण विवरण (Particulars Description):</span>
+                    <span className="font-bold text-gray-900">{selectedExpenseForPrint.title}</span>
+                  </div>
+
+                  {selectedExpenseForPrint.notes && (
+                    <div className="flex border-b border-gray-200 pb-2">
+                      <span className="w-48 text-gray-500 font-extrabold uppercase">विशेष कैफियत (Auditing Notes):</span>
+                      <span className="italic text-gray-650">"{selectedExpenseForPrint.notes}"</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center pt-2 text-xs">
+                    <span className="w-48 text-gray-500 font-extrabold uppercase">कुल भुक्तानी रकम (Debit Total Amount):</span>
+                    <span className="font-mono font-black text-rose-600 text-sm bg-rose-50 px-3 py-1 rounded border border-rose-100">
+                      Rs. {selectedExpenseForPrint.amount.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amount in words */}
+                <div className="mt-4 p-2 bg-gray-50 border border-dashed rounded font-mono text-[9px] text-gray-600" id="exp-amount-words">
+                  <span className="font-extrabold uppercase text-gray-550 block">अक्षरेपी (Amount in words):</span>
+                  <span className="text-gray-900 font-bold block mt-0.5">{numberToWords(selectedExpenseForPrint.amount)}</span>
+                </div>
+
+                {/* Sign-off signatures block */}
+                <div className="grid grid-cols-3 gap-4 mt-10 pt-8 border-t border-dashed text-[9px] text-center font-bold text-gray-600" id="exp-signatures">
+                  <div className="space-y-6">
+                    <div className="h-6"></div>
+                    <p className="border-t border-gray-400 pt-1.5">पेश गर्ने<br/><span className="text-[8px] font-normal text-gray-400">Prepared / Logged By</span></p>
+                  </div>
+                  <div className="space-y-6">
+                    <div className="h-6"></div>
+                    <p className="border-t border-gray-400 pt-1.5">स्वीकृत गर्ने<br/><span className="text-[8px] font-normal text-gray-400">Authorized / Approved By</span></p>
+                  </div>
+                  <div className="space-y-6">
+                    <div className="h-6"></div>
+                    <p className="border-t border-gray-400 pt-1.5">बुझिलिने<br/><span className="text-[8px] font-normal text-gray-400">Recipient / Paid To Sign</span></p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Hint box */}
+            <div className="p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] text-blue-800 flex items-center gap-1.5 font-medium leading-relaxed" id="exp-print-help">
+              <span>💡 Operating receipts and cash expense vouchers are printed in <strong>Portrait</strong> to match internal audit registry files in standard filing cabinets.</span>
+            </div>
+
           </div>
         </div>
       )}

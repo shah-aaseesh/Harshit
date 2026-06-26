@@ -3,14 +3,15 @@ import { useApp } from '../context/AppContext';
 import { Customer, Supplier } from '../types';
 import { 
   Users, UserPlus, Phone, MapPin, Hash, Plus, DollarSign, HandCoins, 
-  Search, ShieldAlert, Award, FileSpreadsheet, ArrowLeftRight, CheckCircle, Info
+  Search, ShieldAlert, Award, FileSpreadsheet, ArrowLeftRight, CheckCircle, Info, Pencil, Printer
 } from 'lucide-react';
-import { getTodayBS } from '../utils/nepaliCalendar';
+import { getTodayBS, numberToWords } from '../utils/nepaliCalendar';
 
 export const CustomerContacts: React.FC = () => {
   const { 
     customers, suppliers, submitCustomer, submitSupplier, 
-    setCustomers, setSuppliers, journals, setJournals, currentUserRole 
+    setCustomers, setSuppliers, journals, setJournals, currentUserRole,
+    businessConfig, invoices
   } = useApp();
 
   // Selected Sibling Tab: 'customers' | 'suppliers' | 'all'
@@ -42,6 +43,28 @@ export const CustomerContacts: React.FC = () => {
   const [suppAddr, setSuppAddr] = useState<string>('');
   const [suppVat, setSuppVat] = useState<string>('');
   const [suppPerson, setSuppPerson] = useState<string>('');
+
+  // Edit form states
+  const [showEditCustModal, setShowEditCustModal] = useState<boolean>(false);
+  const [editingCustId, setEditingCustId] = useState<string>('');
+  const [editCustName, setEditCustName] = useState<string>('');
+  const [editCustPhone, setEditCustPhone] = useState<string>('');
+  const [editCustAddr, setEditCustAddr] = useState<string>('');
+  const [editCustVat, setEditCustVat] = useState<string>('');
+  const [editCustNotes, setEditCustNotes] = useState<string>('');
+
+  const [showEditSuppModal, setShowEditSuppModal] = useState<boolean>(false);
+  const [editingSuppId, setEditingSuppId] = useState<string>('');
+  const [editSuppName, setEditSuppName] = useState<string>('');
+  const [editSuppPhone, setEditSuppPhone] = useState<string>('');
+  const [editSuppAddr, setEditSuppAddr] = useState<string>('');
+  const [editSuppVat, setEditSuppVat] = useState<string>('');
+  const [editSuppPerson, setEditSuppPerson] = useState<string>('');
+
+  // Printing state
+  const [selectedPartyForLedgerPrint, setSelectedPartyForLedgerPrint] = useState<any>(null);
+  const [ledgerPrintType, setLedgerPrintType] = useState<'customer' | 'supplier' | null>(null);
+  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait');
 
   // Search filter implementations
   const filteredCustomers = customers.filter(c => 
@@ -102,6 +125,54 @@ export const CustomerContacts: React.FC = () => {
     setSuppVat('');
     setSuppPerson('');
     setShowAddSuppModal(false);
+  };
+
+  // Handle Customer Edit Submit
+  const handleEditCustSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editCustName.trim() || !editCustPhone.trim()) return;
+
+    const updatedCustomers = customers.map(c => {
+      if (c.id === editingCustId) {
+        return {
+          ...c,
+          name: editCustName,
+          phone: editCustPhone,
+          address: editCustAddr || undefined,
+          panVat: editCustVat || undefined,
+          notes: editCustNotes || undefined
+        };
+      }
+      return c;
+    });
+
+    setCustomers(updatedCustomers);
+    localStorage.setItem('sb_customers', JSON.stringify(updatedCustomers));
+    setShowEditCustModal(false);
+  };
+
+  // Handle Supplier Edit Submit
+  const handleEditSuppSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editSuppName.trim() || !editSuppPhone.trim()) return;
+
+    const updatedSuppliers = suppliers.map(s => {
+      if (s.id === editingSuppId) {
+        return {
+          ...s,
+          name: editSuppName,
+          phone: editSuppPhone,
+          address: editSuppAddr || undefined,
+          panVat: editSuppVat || undefined,
+          contactPerson: editSuppPerson || undefined
+        };
+      }
+      return s;
+    });
+
+    setSuppliers(updatedSuppliers);
+    localStorage.setItem('sb_suppliers', JSON.stringify(updatedSuppliers));
+    setShowEditSuppModal(false);
   };
 
   /**
@@ -229,6 +300,104 @@ export const CustomerContacts: React.FC = () => {
     (p.address && p.address.toLowerCase().includes(query.toLowerCase())) ||
     (p.partyType === 'supplier' && p.contactPerson && p.contactPerson.toLowerCase().includes(query.toLowerCase()))
   );
+
+  const triggerPrintForElement = (elementId: string, titleName: string, orientation: 'portrait' | 'landscape' = 'portrait') => {
+    const el = document.getElementById(elementId);
+    if (!el) {
+      window.print();
+      return;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.zIndex = "-9999";
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) {
+      window.print();
+      return;
+    }
+
+    let styleTagsHtml = "";
+    document.querySelectorAll("style, link[rel='stylesheet']").forEach(styles => {
+      styleTagsHtml += styles.outerHTML;
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${titleName}</title>
+          ${styleTagsHtml}
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+            body {
+              font-family: 'Inter', sans-serif;
+              background-color: white !important;
+              color: #000000 !important;
+              margin: 0;
+              padding: 24px;
+            }
+            #${elementId} {
+              border: none !important;
+              box-shadow: none !important;
+              width: 100% !important;
+              padding: 0 !important;
+            }
+            @page {
+              size: A4 ${orientation};
+              margin: 15mm;
+            }
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                filter: grayscale(100%) !important;
+                -webkit-filter: grayscale(100%) !important;
+              }
+              * {
+                color: #000000 !important;
+                text-shadow: none !important;
+                box-shadow: none !important;
+              }
+              button, .no-print {
+                display: none !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div id="${elementId}">
+            ${el.innerHTML}
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                try {
+                  window.print();
+                } catch(e) {
+                  console.error(e);
+                }
+                setTimeout(function() {
+                  window.frameElement.remove();
+                }, 100);
+              }, 300);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    iframeDoc.open();
+    iframeDoc.write(htmlContent);
+    iframeDoc.close();
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto" id="contacts-module-container">
@@ -391,11 +560,29 @@ export const CustomerContacts: React.FC = () => {
                         </p>
                       </div>
 
-                      {hasDue && (
-                        <span className="px-2 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-bold rounded-md animate-pulse">
-                          Credit Due
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          id={`btn-edit-cust-${cust.id}`}
+                          onClick={() => {
+                            setEditingCustId(cust.id);
+                            setEditCustName(cust.name);
+                            setEditCustPhone(cust.phone);
+                            setEditCustAddr(cust.address || '');
+                            setEditCustVat(cust.panVat || '');
+                            setEditCustNotes(cust.notes || '');
+                            setShowEditCustModal(true);
+                          }}
+                          className="p-1 hover:bg-gray-100 rounded-md text-gray-400 hover:text-blue-600 transition"
+                          title="Edit Customer"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        {hasDue && (
+                          <span className="px-2 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-bold rounded-md animate-pulse">
+                            Credit Due
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[10px] border-t border-gray-50 pt-2 text-gray-550" id="customer-card-metrics">
@@ -428,9 +615,22 @@ export const CustomerContacts: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Actions for settlements */}
-                  {hasDue && (
-                    <div className="border-t border-gray-100 pt-3 mt-3 flex justify-end" id="customer-card-actions-wrapper">
+                  {/* Actions for settlements and printing */}
+                  <div className="border-t border-gray-100 pt-3 mt-3 flex justify-between items-center gap-2" id="customer-card-actions-wrapper">
+                    <button
+                      id={`btn-print-ledger-cust-${cust.id}`}
+                      onClick={() => {
+                        setSelectedPartyForLedgerPrint(cust);
+                        setLedgerPrintType('customer');
+                        setPrintOrientation('portrait');
+                      }}
+                      className="py-1.5 px-2.5 text-gray-600 hover:text-blue-650 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                      title="Print Customer Ledger Statement"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-gray-500" />
+                      <span>खाता विवरण (Ledger)</span>
+                    </button>
+                    {hasDue && (
                       <button
                         id={`btn-settle-cust-${cust.id}`}
                         onClick={() => {
@@ -439,12 +639,12 @@ export const CustomerContacts: React.FC = () => {
                           setSettleAmount(cust.outstandingDue);
                           setShowSettleModal(true);
                         }}
-                        className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5"
+                        className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5 cursor-pointer"
                       >
-                        <HandCoins className="h-3.5 w-3.5" /> Settle Credit Payment (Receipt)
+                        <HandCoins className="h-3.5 w-3.5" /> Settle Credit
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               );
             })
@@ -477,11 +677,29 @@ export const CustomerContacts: React.FC = () => {
                         )}
                       </div>
 
-                      {hasDue && (
-                        <span className="px-2 py-0.5 bg-amber-100 text-amber-805 text-[10px] font-bold rounded-md animate-pulse">
-                          Payable Out
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          id={`btn-edit-supp-${supp.id}`}
+                          onClick={() => {
+                            setEditingSuppId(supp.id);
+                            setEditSuppName(supp.name);
+                            setEditSuppPhone(supp.phone);
+                            setEditSuppAddr(supp.address || '');
+                            setEditSuppVat(supp.panVat || '');
+                            setEditSuppPerson(supp.contactPerson || '');
+                            setShowEditSuppModal(true);
+                          }}
+                          className="p-1 hover:bg-gray-100 rounded-md text-gray-400 hover:text-blue-600 transition"
+                          title="Edit Supplier"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        {hasDue && (
+                          <span className="px-2 py-0.5 bg-amber-100 text-amber-805 text-[10px] font-bold rounded-md animate-pulse">
+                            Payable Out
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[10px] border-t border-gray-50 pt-2 text-gray-550" id="supplier-card-metrics">
@@ -514,9 +732,22 @@ export const CustomerContacts: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Settlements payout trigger */}
-                  {hasDue && currentUserRole === 'Owner' && (
-                    <div className="border-t border-gray-100 pt-3 mt-3 flex justify-end" id="supplier-card-actions-wrapper">
+                  {/* Actions for settlements and printing */}
+                  <div className="border-t border-gray-100 pt-3 mt-3 flex justify-between items-center gap-2" id="supplier-card-actions-wrapper">
+                    <button
+                      id={`btn-print-ledger-supp-${supp.id}`}
+                      onClick={() => {
+                        setSelectedPartyForLedgerPrint(supp);
+                        setLedgerPrintType('supplier');
+                        setPrintOrientation('portrait');
+                      }}
+                      className="py-1.5 px-2.5 text-gray-600 hover:text-amber-700 hover:bg-amber-50 border border-gray-200 hover:border-amber-200 transition rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                      title="Print Supplier Ledger Statement"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-gray-500" />
+                      <span>खाता विवरण (Ledger)</span>
+                    </button>
+                    {hasDue && currentUserRole === 'Owner' && (
                       <button
                         id={`btn-settle-supp-${supp.id}`}
                         onClick={() => {
@@ -525,12 +756,12 @@ export const CustomerContacts: React.FC = () => {
                           setSettleAmount(supp.outstandingDue);
                           setShowSettleModal(true);
                         }}
-                        className="py-1.5 px-3 bg-amber-600 hover:bg-amber-750 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5"
+                        className="py-1.5 px-3 bg-amber-600 hover:bg-amber-700 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5 cursor-pointer"
                       >
-                        <HandCoins className="h-3.5 w-3.5" /> Post Settlement payout
+                        <HandCoins className="h-3.5 w-3.5" /> Post Settlement
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               );
             })
@@ -575,15 +806,43 @@ export const CustomerContacts: React.FC = () => {
                         )}
                       </div>
 
-                      {hasDue && (
-                        <span className={`px-2 py-0.5 text-[9px] uppercase tracking-wider font-extrabold rounded-md animate-pulse shrink-0 ${
-                          party.partyType === 'customer' 
-                            ? 'bg-rose-100 text-rose-800' 
-                            : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {party.partyType === 'customer' ? 'Receivable' : 'Payable'}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          id={`btn-edit-party-${party.partyType}-${party.id}`}
+                          onClick={() => {
+                            if (party.partyType === 'customer') {
+                              setEditingCustId(party.id);
+                              setEditCustName(party.name);
+                              setEditCustPhone(party.phone);
+                              setEditCustAddr(party.address || '');
+                              setEditCustVat(party.panVat || '');
+                              setEditCustNotes(party.notes || '');
+                              setShowEditCustModal(true);
+                            } else {
+                              setEditingSuppId(party.id);
+                              setEditSuppName(party.name);
+                              setEditSuppPhone(party.phone);
+                              setEditSuppAddr(party.address || '');
+                              setEditSuppVat(party.panVat || '');
+                              setEditSuppPerson(party.contactPerson || '');
+                              setShowEditSuppModal(true);
+                            }
+                          }}
+                          className="p-1 hover:bg-gray-100 rounded-md text-gray-400 hover:text-blue-600 transition"
+                          title={`Edit ${party.partyType === 'customer' ? 'Customer' : 'Supplier'}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        {hasDue && (
+                          <span className={`px-2 py-0.5 text-[9px] uppercase tracking-wider font-extrabold rounded-md animate-pulse shrink-0 ${
+                            party.partyType === 'customer' 
+                              ? 'bg-rose-100 text-rose-800' 
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {party.partyType === 'customer' ? 'Receivable' : 'Payable'}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[10px] border-t border-gray-50 pt-2 text-gray-550" id="party-card-metrics">
@@ -616,9 +875,26 @@ export const CustomerContacts: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Actions for settlements */}
-                  {hasDue && (
-                    <div className="border-t border-gray-100 pt-3 mt-3 flex justify-end" id="party-card-actions-wrapper">
+                  {/* Actions for settlements and printing */}
+                  <div className="border-t border-gray-100 pt-3 mt-3 flex justify-between items-center gap-2" id="party-card-actions-wrapper">
+                    <button
+                      id={`btn-print-ledger-party-${party.partyType}-${party.id}`}
+                      onClick={() => {
+                        setSelectedPartyForLedgerPrint(party);
+                        setLedgerPrintType(party.partyType);
+                        setPrintOrientation('portrait');
+                      }}
+                      className={`py-1.5 px-2.5 text-gray-600 border border-gray-200 transition rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer ${
+                        party.partyType === 'customer' 
+                          ? 'hover:text-blue-655 hover:bg-blue-50 hover:border-blue-200' 
+                          : 'hover:text-amber-700 hover:bg-amber-50 hover:border-amber-200'
+                      }`}
+                      title={`Print ${party.partyType === 'customer' ? 'Customer' : 'Supplier'} Ledger Statement`}
+                    >
+                      <Printer className="h-3.5 w-3.5 text-gray-500" />
+                      <span>खाता विवरण (Ledger)</span>
+                    </button>
+                    {hasDue && (
                       <button
                         id={`btn-settle-${party.partyType}-${party.id}`}
                         onClick={() => {
@@ -627,12 +903,12 @@ export const CustomerContacts: React.FC = () => {
                           setSettleAmount(party.outstandingDue);
                           setShowSettleModal(true);
                         }}
-                        className={`py-1.5 px-3 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5 ${party.settleBtnColorClass}`}
+                        className={`py-1.5 px-3 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5 cursor-pointer ${party.settleBtnColorClass}`}
                       >
                         <HandCoins className="h-3.5 w-3.5" /> {party.settleBtnText}
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               );
             })
@@ -803,7 +1079,7 @@ export const CustomerContacts: React.FC = () => {
         <div className="fixed inset-0 bg-black/45 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-add-supplier-direct">
           <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border" id="add-supp-inner">
             <div className="flex justify-between items-center border-b pb-2">
-              <span className="font-semibold text-gray-900 text-xs">Register Agricultural Supplier Corp</span>
+              <span className="font-semibold text-gray-900 text-xs">Register Stationery Supplier Corp</span>
               <button id="btn-close-supp-direct-modal" onClick={() => setShowAddSuppModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
             <form onSubmit={handleAddSuppSubmit} className="space-y-3 text-xs" id="supp-direct-form">
@@ -813,7 +1089,7 @@ export const CustomerContacts: React.FC = () => {
                   type="text"
                   id="input-direct-supp-name"
                   required
-                  placeholder="e.g. Mustang Apple Farms Ltd"
+                  placeholder="e.g. Himalayan Paper Mills Ltd"
                   value={suppName}
                   onChange={(e) => setSuppName(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg p-2 outline-none"
@@ -821,14 +1097,14 @@ export const CustomerContacts: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-gray-650 block">Farms Phone *</label>
+                <label className="text-gray-650 block">Supplier Phone *</label>
                 <input
                   type="text"
                   id="input-direct-supp-phone"
                   required
                   value={suppPhone}
                   onChange={(e) => setSuppPhone(e.target.value)}
-                  placeholder="Contact code"
+                  placeholder="Contact phone number"
                   className="w-full border border-gray-200 rounded-lg p-2 outline-none"
                 />
               </div>
@@ -882,6 +1158,465 @@ export const CustomerContacts: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL: EDIT CUSTOMER */}
+      {showEditCustModal && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-edit-customer">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border text-left" id="edit-cust-inner">
+            <div className="flex justify-between items-center border-b pb-2">
+              <span className="font-semibold text-gray-900 text-xs">Edit Customer Profile</span>
+              <button id="btn-close-edit-cust-modal" onClick={() => setShowEditCustModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <form onSubmit={handleEditCustSubmit} className="space-y-3 text-xs" id="edit-cust-form">
+              <div className="space-y-1">
+                <label className="text-gray-650 block">Full Name *</label>
+                <input
+                  type="text"
+                  id="input-edit-cust-name"
+                  required
+                  value={editCustName}
+                  onChange={(e) => setEditCustName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none text-gray-800 font-semibold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-650 block">Phone Number *</label>
+                <input
+                  type="text"
+                  id="input-edit-cust-phone"
+                  required
+                  value={editCustPhone}
+                  onChange={(e) => setEditCustPhone(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none text-gray-800 font-semibold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-650 block">Address</label>
+                <input
+                  type="text"
+                  id="input-edit-cust-addr"
+                  value={editCustAddr}
+                  onChange={(e) => setEditCustAddr(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none text-gray-800 font-semibold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-655 block">PAN / VAT Reg ID</label>
+                <input
+                  type="text"
+                  id="input-edit-cust-pan"
+                  value={editCustVat}
+                  onChange={(e) => setEditCustVat(e.target.value)}
+                  placeholder="9 digit code"
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none font-mono text-gray-800 font-semibold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-655 block">Notes</label>
+                <input
+                  type="text"
+                  id="input-edit-cust-notes"
+                  value={editCustNotes}
+                  onChange={(e) => setEditCustNotes(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none text-gray-800 font-semibold"
+                />
+              </div>
+
+              <button
+                type="submit"
+                id="btn-confirm-update-cust"
+                className="w-full py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition"
+              >
+                Update Customer Record
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT SUPPLIER */}
+      {showEditSuppModal && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-edit-supplier">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border text-left" id="edit-supp-inner">
+            <div className="flex justify-between items-center border-b pb-2">
+              <span className="font-semibold text-gray-900 text-xs">Edit Supplier Profile</span>
+              <button id="btn-close-edit-supp-modal" onClick={() => setShowEditSuppModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <form onSubmit={handleEditSuppSubmit} className="space-y-3 text-xs" id="edit-supp-form">
+              <div className="space-y-1">
+                <label className="text-gray-650 block">Supplier Company Name *</label>
+                <input
+                  type="text"
+                  id="input-edit-supp-name"
+                  required
+                  value={editSuppName}
+                  onChange={(e) => setEditSuppName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none text-gray-800 font-semibold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-655 block">Farms Phone *</label>
+                <input
+                  type="text"
+                  id="input-edit-supp-phone"
+                  required
+                  value={editSuppPhone}
+                  onChange={(e) => setEditSuppPhone(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none text-gray-800 font-semibold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-655 block">Primary Liaison Coordinator</label>
+                <input
+                  type="text"
+                  id="input-edit-supp-person"
+                  value={editSuppPerson}
+                  onChange={(e) => setEditSuppPerson(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none text-gray-800 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3" id="edit-supp-meta-col">
+                <div className="space-y-1">
+                  <label className="text-gray-650 block">Agronomy Office</label>
+                  <input
+                    type="text"
+                    id="input-edit-supp-addr"
+                    value={editSuppAddr}
+                    onChange={(e) => setEditSuppAddr(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg p-2 outline-none text-gray-800 font-semibold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-gray-650 block">PAN/VAT Reg</label>
+                  <input
+                    type="text"
+                    id="input-edit-supp-pan"
+                    value={editSuppVat}
+                    onChange={(e) => setEditSuppVat(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg p-2 outline-none font-mono text-gray-800 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                id="btn-confirm-update-supp"
+                className="w-full py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition"
+              >
+                Update Supplier Record
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PARTY GENERAL LEDGER STATEMENT (लेजर खाता विवरण) PRINT HUB */}
+      {selectedPartyForLedgerPrint && (() => {
+        const party = selectedPartyForLedgerPrint;
+        const isCust = ledgerPrintType === 'customer';
+        
+        // Compile transactions
+        const ledgerEntries: any[] = [];
+        if (isCust) {
+          const custInvoices = invoices.filter(inv => inv.customerId === party.id);
+          custInvoices.forEach(inv => {
+            ledgerEntries.push({
+              date: inv.date,
+              bsDate: inv.bsDate,
+              particulars: `बिक्री बीजक (Sales Invoice) #${inv.invoiceNo}`,
+              ref: inv.invoiceNo,
+              debit: inv.grandTotal,
+              credit: 0
+            });
+            if (inv.paidAmount > 0) {
+              ledgerEntries.push({
+                date: inv.date,
+                bsDate: inv.bsDate,
+                particulars: `नगद भुक्तानी प्राप्त (Payment Recd - ${inv.paymentMethod})`,
+                ref: `REC-${inv.invoiceNo}`,
+                debit: 0,
+                credit: inv.paidAmount
+              });
+            }
+          });
+
+          // Add journal collections
+          const settlements = journals.filter(j => j.description.includes(party.name));
+          settlements.forEach(j => {
+            ledgerEntries.push({
+              date: j.date,
+              bsDate: j.bsDate,
+              particulars: `उधारो चुक्ता रसिद (Credit Settled - Cash/Bank)`,
+              ref: j.reference,
+              debit: 0,
+              credit: j.amount
+            });
+          });
+        } else {
+          // Supplier
+          if (party.totalPurchased > 0) {
+            ledgerEntries.push({
+              date: '2026-04-14',
+              bsDate: '2083-01-01',
+              particulars: `थोक कृषि खरिद कारोबार (Bulk Purchases Trade)`,
+              ref: 'PUR-INIT',
+              debit: 0,
+              credit: party.totalPurchased
+            });
+          }
+          if (party.totalPaid > 0) {
+            ledgerEntries.push({
+              date: '2026-04-15',
+              bsDate: '2083-01-02',
+              particulars: `आंशिक भुक्तानी फस्र्यौट (Installment Paid Out)`,
+              ref: `PAY-INIT`,
+              debit: party.totalPaid,
+              credit: 0
+            });
+          }
+          const settlements = journals.filter(j => j.description.includes(party.name));
+          settlements.forEach(j => {
+            ledgerEntries.push({
+              date: j.date,
+              bsDate: j.bsDate,
+              particulars: `दायित्व भुक्तानी फस्र्यौट (Credit Paid Out)`,
+              ref: j.reference,
+              debit: j.amount,
+              credit: 0
+            });
+          });
+        }
+
+        // Sort by date
+        ledgerEntries.sort((a, b) => a.date.localeCompare(b.date));
+
+        // Calculate running balances
+        let runningBal = 0;
+        const ledgerRows = ledgerEntries.map((entry) => {
+          if (isCust) {
+            // Customer: Debit increases dues, Credit reduces dues
+            runningBal += (entry.debit - entry.credit);
+          } else {
+            // Supplier: Credit increases dues (liability), Debit reduces dues (payment)
+            runningBal += (entry.credit - entry.debit);
+          }
+          return {
+            ...entry,
+            balance: runningBal
+          };
+        });
+
+        const totalDebit = ledgerEntries.reduce((sum, e) => sum + e.debit, 0);
+        const totalCredit = ledgerEntries.reduce((sum, e) => sum + e.credit, 0);
+
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto" id="modal-party-ledger-print">
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 space-y-4 border text-left" id="party-ledger-container">
+              
+              {/* Action Bar */}
+              <div className="flex flex-wrap justify-between items-center gap-3 border-b pb-3" id="ledger-print-action-bar">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-xs uppercase tracking-wider">
+                    {isCust ? 'Customer Ledger Statement' : 'Supplier Account Statement'} (खाता पाना विवरण)
+                  </h3>
+                  <p className="text-[10px] text-gray-450 font-medium">Standardized client ledger directory and audit checklist</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-gray-500">Orientation:</span>
+                  <button 
+                    onClick={() => setPrintOrientation('portrait')}
+                    className={`px-2.5 py-1 text-[10px] font-extrabold rounded-md border transition ${
+                      printOrientation === 'portrait' 
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-xs' 
+                        : 'bg-white text-gray-700 border-gray-250 hover:bg-gray-50'
+                    }`}
+                  >
+                    Portrait (ठाडो) - Best
+                  </button>
+                  <button 
+                    onClick={() => setPrintOrientation('landscape')}
+                    className={`px-2.5 py-1 text-[10px] font-extrabold rounded-md border transition ${
+                      printOrientation === 'landscape' 
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-xs' 
+                        : 'bg-white text-gray-700 border-gray-250 hover:bg-gray-50'
+                    }`}
+                  >
+                    Landscape (तेर्सो)
+                  </button>
+                  <button
+                    id="btn-trigger-ledger-print"
+                    onClick={() => triggerPrintForElement('party-ledger-print-content', `${party.name} Statement`, printOrientation)}
+                    className="flex items-center gap-1 px-3 py-1 bg-emerald-600 text-white text-[10px] font-black rounded-lg hover:bg-emerald-700 transition shadow-xs"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    Print Statement
+                  </button>
+                  <button 
+                    onClick={() => setSelectedPartyForLedgerPrint(null)}
+                    className="text-gray-400 hover:text-gray-600 text-xs px-2 font-bold"
+                  >
+                    Close ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Print Preview viewport */}
+              <div className="bg-gray-50 border p-4 rounded-xl max-h-[60vh] overflow-y-auto" id="ledger-preview-viewport">
+                <div 
+                  id="party-ledger-print-content" 
+                  className="bg-white border p-6 mx-auto shadow-sm text-gray-900 text-xs leading-relaxed" 
+                  style={{ width: '100%', maxWidth: printOrientation === 'portrait' ? '680px' : '100%', minHeight: '500px' }}
+                >
+                  
+                  {/* Business Header */}
+                  <div className="text-center space-y-1.5 border-b-2 border-double border-gray-800 pb-3" id="ledger-sheet-header">
+                    {businessConfig.logo && (
+                      <img src={businessConfig.logo} alt="Company Logo" className="h-10 mx-auto object-contain mb-1" referrerPolicy="no-referrer" />
+                    )}
+                    <h1 className="text-sm font-black text-gray-950 uppercase">{businessConfig.nepaliName || businessConfig.name}</h1>
+                    <p className="text-[10px] text-gray-500 font-semibold">{businessConfig.address}</p>
+                    <p className="text-[10px] text-gray-500 font-mono">फोन नं: {businessConfig.phone} | PAN/VAT No: {businessConfig.panVat || 'N/A'}</p>
+                    
+                    <div className="pt-2">
+                      <span className="inline-block px-4 py-1 border border-gray-900 text-[11px] font-black tracking-widest uppercase rounded">
+                        {isCust ? 'ग्राहक लेजर खाता विवरण' : 'विक्रेता खाता लेजर विवरण'} (PARTY LEDGER STATEMENT)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Profile & Date section */}
+                  <div className="grid grid-cols-2 justify-between items-start text-[10px] py-3.5 border-b border-gray-350" id="ledger-profile-sec">
+                    <div className="space-y-1 text-left">
+                      <p className="text-[11px] font-bold text-gray-950 uppercase">{party.name}</p>
+                      {party.contactPerson && <p><span className="text-gray-500">liaison Manager:</span> <span className="font-semibold">{party.contactPerson}</span></p>}
+                      <p><span className="text-gray-500">ठेगाना (Address):</span> <span className="font-medium">{party.address || 'Address unconfigured'}</span></p>
+                      <p><span className="text-gray-500">सम्पर्क (Phone):</span> <span className="font-mono font-bold text-gray-900">{party.phone}</span></p>
+                      {party.panVat && <p><span className="text-gray-500">PAN/VAT No:</span> <span className="font-mono font-bold text-gray-900">{party.panVat}</span></p>}
+                    </div>
+                    <div className="space-y-1 text-right">
+                      <p><span className="text-gray-500">खाता प्रकार (Account):</span> <span className="font-bold text-blue-700 uppercase">{isCust ? 'Accounts Receivable (ग्राहक)' : 'Accounts Payable (साहु)'}</span></p>
+                      <p><span className="text-gray-500">मिति (Date):</span> <span className="font-mono text-gray-900">{getTodayBS()} (BS) / {new Date().toISOString().split('T')[0]} (AD)</span></p>
+                      <p><span className="text-gray-500">खाता नं. (Code):</span> <span className="font-mono text-gray-800 uppercase">{party.id.slice(0, 10)}</span></p>
+                    </div>
+                  </div>
+
+                  {/* Financial Balance Summary Box inside the sheet */}
+                  <div className="grid grid-cols-3 gap-2 py-3 border-b border-gray-200 text-center font-bold text-[9px] text-gray-600 bg-gray-50 p-2 rounded-lg my-3" id="ledger-summary-kpis-box">
+                    <div>
+                      <span className="block text-gray-450 uppercase">{isCust ? 'कुल कारोबार (Total Billing):' : 'कुल खरिद (Total Purchases):'}</span>
+                      <span className="block text-[11px] font-black text-gray-900 font-mono mt-0.5">Rs. {isCust ? party.totalPurchases.toLocaleString() : party.totalPurchased.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="block text-gray-450 uppercase">कुल फर्स्यौट (Total Cleared):</span>
+                      <span className="block text-[11px] font-black text-emerald-700 font-mono mt-0.5">Rs. {party.totalPaid.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="block text-gray-450 uppercase">बाँकी मौज्दात (Outstanding Balance):</span>
+                      <span className="block text-[11px] font-black text-rose-700 font-mono mt-0.5">Rs. {party.outstandingDue.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  {/* Ledger Table */}
+                  <div className="mt-4 border border-gray-800 rounded-lg overflow-hidden text-[9px]" id="ledger-table-sheet">
+                    <table className="w-full text-left border-collapse" id="ledger-print-table">
+                      <thead>
+                        <tr className="bg-gray-100 text-gray-950 font-bold border-b border-gray-800 uppercase">
+                          <th id="th-ledg-sn" className="p-1.5 border-r border-gray-800 w-10 text-center">S.N</th>
+                          <th id="th-ledg-date" className="p-1.5 border-r border-gray-800 w-24">मिति (Date BS/AD)</th>
+                          <th id="th-ledg-part" className="p-1.5 border-r border-gray-800">विवरण (Particulars)</th>
+                          <th id="th-ledg-ref" className="p-1.5 border-r border-gray-800 w-20">प्रमाण नं. (Ref)</th>
+                          <th id="th-ledg-dr" className="p-1.5 border-r border-gray-800 text-right w-24">डेबिट (+) (Debit Rs)</th>
+                          <th id="th-ledg-cr" className="p-1.5 border-r border-gray-800 text-right w-24">क्रेडिट (-) (Credit Rs)</th>
+                          <th id="th-ledg-bal" className="p-1.5 text-right w-24">बाँकी मौज्दात (Balance Rs)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-300 font-medium" id="ledger-print-tbody">
+                        {ledgerRows.map((row, idx) => (
+                          <tr key={idx} className="align-middle">
+                            <td className="p-1.5 border-r border-gray-800 text-center font-mono">{idx + 1}</td>
+                            <td className="p-1.5 border-r border-gray-800 text-left">
+                              <span className="font-mono font-semibold block text-gray-900">{row.bsDate}</span>
+                              <span className="font-mono text-[8px] text-gray-400 block mt-0.5">{row.date}</span>
+                            </td>
+                            <td className="p-1.5 border-r border-gray-800 text-left text-gray-800 font-semibold">{row.particulars}</td>
+                            <td className="p-1.5 border-r border-gray-800 font-mono uppercase text-gray-600">{row.ref}</td>
+                            <td className="p-1.5 border-r border-gray-800 text-right font-mono text-gray-900">
+                              {row.debit > 0 ? `Rs. ${row.debit.toLocaleString()}` : '-'}
+                            </td>
+                            <td className="p-1.5 border-r border-gray-800 text-right font-mono text-gray-900">
+                              {row.credit > 0 ? `Rs. ${row.credit.toLocaleString()}` : '-'}
+                            </td>
+                            <td className="p-1.5 text-right font-mono font-bold text-gray-950">
+                              Rs. {row.balance.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                        {ledgerRows.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="p-4 text-center text-gray-400 font-semibold">
+                              No historical transactions detected for this contact profile in fiscal year daybook.
+                            </td>
+                          </tr>
+                        )}
+                        {/* Totals Row */}
+                        <tr className="bg-gray-100 font-bold border-t border-gray-800 text-[9.5px]">
+                          <td colSpan={4} className="p-2 border-r border-gray-800 text-right uppercase">
+                            कुल योग (Total Ledger Summations):
+                          </td>
+                          <td className="p-2 border-r border-gray-800 text-right font-mono text-gray-900">
+                            Rs. {totalDebit.toLocaleString()}
+                          </td>
+                          <td className="p-2 border-r border-gray-800 text-right font-mono text-gray-900">
+                            Rs. {totalCredit.toLocaleString()}
+                          </td>
+                          <td className="p-2 text-right font-mono font-black text-rose-700 bg-rose-50/50">
+                            Rs. {party.outstandingDue.toLocaleString()}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Amount in words */}
+                  <div className="mt-4 p-2 bg-gray-50 border border-dashed rounded font-mono text-[9px] text-gray-600" id="ledger-amount-words">
+                    <span className="font-extrabold uppercase text-gray-550 block">अक्षरेपी बाँकी मौज्दात (Outstanding balance in words):</span>
+                    <span className="text-gray-900 font-bold block mt-0.5">
+                      {party.outstandingDue > 0 ? `${numberToWords(party.outstandingDue)} Only` : 'Zero Balance (शून्य मौज्दात)'}
+                    </span>
+                  </div>
+
+                  {/* Sign-off signatures */}
+                  <div className="grid grid-cols-2 gap-4 mt-12 pt-8 border-t border-dashed text-[8px] text-center font-bold text-gray-600" id="ledger-signatures">
+                    <div className="space-y-6">
+                      <div className="h-6"></div>
+                      <p className="border-t border-gray-400 pt-1.5">लेखा प्रमुखको हस्ताक्षर<br/><span className="text-[7px] font-normal text-gray-400">Chief Accountant / Logged By</span></p>
+                    </div>
+                    <div className="space-y-6">
+                      <div className="h-6"></div>
+                      <p className="border-t border-gray-400 pt-1.5">ग्राहक/सरोकारवालाको बुझिलिने हस्ताक्षर<br/><span className="text-[7px] font-normal text-gray-400">Authorized Client / Party Confirmation Sign</span></p>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Hint Box */}
+              <div className="p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] text-blue-800 flex items-center gap-1.5 font-medium leading-relaxed" id="ledger-print-help">
+                <span>💡 General Ledger Statements containing detailed transactional records and credit balances are printed in <strong>Portrait</strong> layout for standard business records and folder indexing.</span>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

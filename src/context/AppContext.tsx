@@ -71,6 +71,12 @@ interface AppContextType {
   restoreFromSupabase: () => Promise<SyncResult>;
   lastSyncedAt: string | null;
   isSyncing: boolean;
+
+  // Multiple Business Profiles
+  activeBusinessId: 'b1' | 'b2';
+  switchBusinessProfile: (profileId: 'b1' | 'b2') => void;
+  hasSecondBusiness: boolean;
+  enableSecondBusiness: (name: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -99,64 +105,110 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
   const [supabaseStatus, setSupabaseStatus] = useState<{ success: boolean; message: string; tableExists: boolean } | null>(null);
 
+  // Business Profiles State
+  const [activeBusinessId, setActiveBusinessIdState] = useState<'b1' | 'b2'>(() => {
+    return (localStorage.getItem('sb_active_business_id') as 'b1' | 'b2') || 'b1';
+  });
 
-  // Local storage synchronization
-  useEffect(() => {
+  const [hasSecondBusiness, setHasSecondBusiness] = useState<boolean>(() => {
+    return localStorage.getItem('sb_has_second_business') === 'true';
+  });
+
+  const enableSecondBusiness = (name: string) => {
+    localStorage.setItem('sb_has_second_business', 'true');
+    setHasSecondBusiness(true);
+
+    const secondaryConfig = {
+      ...INITIAL_BUSINESS_CONFIG,
+      name: name || "Classic Stationery & Distributors",
+      nepaliName: "क्लासिक स्टेशनरी एण्ड डिस्ट्रिब्युटर्स",
+      address: "Biratnagar, Nepal",
+      phone: "+977-21-555123",
+      panVat: "601234567",
+      slogan: "Wholesale Office & Paper Merchants",
+    };
+
+    localStorage.setItem('sb_business_config_b2', JSON.stringify(secondaryConfig));
+    if (activeBusinessId === 'b2') {
+      setBusinessConfigState(secondaryConfig);
+    }
+  };
+
+  const loadProfileData = (profileId: 'b1' | 'b2') => {
     try {
-      const storedConfig = localStorage.getItem('sb_business_config');
-      const storedProducts = localStorage.getItem('sb_products');
-      const storedCustomers = localStorage.getItem('sb_customers');
-      const storedSuppliers = localStorage.getItem('sb_suppliers');
-      const storedExpenses = localStorage.getItem('sb_expenses');
-      const storedInvoices = localStorage.getItem('sb_invoices');
-      const storedPurchases = localStorage.getItem('sb_purchases');
-      const storedJournals = localStorage.getItem('sb_journals');
-      const storedMovements = localStorage.getItem('sb_stock_movements');
-      const storedNotifications = localStorage.getItem('sb_notifications');
+      const getPrefixedKey = (key: string) => profileId === 'b1' ? key : `${key}_b2`;
+
+      const storedConfig = localStorage.getItem(getPrefixedKey('sb_business_config'));
+      const storedProducts = localStorage.getItem(getPrefixedKey('sb_products'));
+      const storedCustomers = localStorage.getItem(getPrefixedKey('sb_customers'));
+      const storedSuppliers = localStorage.getItem(getPrefixedKey('sb_suppliers'));
+      const storedExpenses = localStorage.getItem(getPrefixedKey('sb_expenses'));
+      const storedInvoices = localStorage.getItem(getPrefixedKey('sb_invoices'));
+      const storedPurchases = localStorage.getItem(getPrefixedKey('sb_purchases'));
+      const storedJournals = localStorage.getItem(getPrefixedKey('sb_journals'));
+      const storedMovements = localStorage.getItem(getPrefixedKey('sb_stock_movements'));
+      const storedNotifications = localStorage.getItem(getPrefixedKey('sb_notifications'));
       const storedRole = localStorage.getItem('sb_role');
 
-      if (storedConfig) setBusinessConfigState(JSON.parse(storedConfig));
+      if (storedConfig) {
+        setBusinessConfigState(JSON.parse(storedConfig));
+      } else {
+        if (profileId === 'b2') {
+          // Unique default config for second business to clearly distinguish them
+          setBusinessConfigState({
+            ...INITIAL_BUSINESS_CONFIG,
+            name: "Classic Stationery & Distributors",
+            nepaliName: "क्लासिक स्टेशनरी एण्ड डिस्ट्रिब्युटर्स",
+            address: "Biratnagar, Nepal",
+            phone: "+977-21-555123",
+            panVat: "601234567",
+            slogan: "Wholesale Office & Paper Merchants",
+          });
+        } else {
+          setBusinessConfigState(INITIAL_BUSINESS_CONFIG);
+        }
+      }
       
       if (storedProducts) {
         setProducts(JSON.parse(storedProducts));
       } else {
-        setProducts(INITIAL_PRODUCTS);
+        setProducts(profileId === 'b1' ? INITIAL_PRODUCTS : []);
       }
 
       if (storedCustomers) {
         setCustomers(JSON.parse(storedCustomers));
       } else {
-        setCustomers(INITIAL_CUSTOMERS);
+        setCustomers(profileId === 'b1' ? INITIAL_CUSTOMERS : []);
       }
 
       if (storedSuppliers) {
         setSuppliers(JSON.parse(storedSuppliers));
       } else {
-        setSuppliers(INITIAL_SUPPLIERS);
+        setSuppliers(profileId === 'b1' ? INITIAL_SUPPLIERS : []);
       }
 
       if (storedExpenses) {
         setExpenses(JSON.parse(storedExpenses));
       } else {
-        setExpenses(INITIAL_EXPENSES);
+        setExpenses(profileId === 'b1' ? INITIAL_EXPENSES : []);
       }
 
       if (storedInvoices) {
         setInvoices(JSON.parse(storedInvoices));
       } else {
-        setInvoices(INITIAL_INVOICES);
+        setInvoices(profileId === 'b1' ? INITIAL_INVOICES : []);
       }
 
       if (storedPurchases) {
         setPurchases(JSON.parse(storedPurchases));
       } else {
-        setPurchases(INITIAL_PURCHASES);
+        setPurchases(profileId === 'b1' ? INITIAL_PURCHASES : []);
       }
 
       if (storedJournals) {
         setJournals(JSON.parse(storedJournals));
       } else {
-        setJournals(INITIAL_JOURNALS);
+        setJournals(profileId === 'b1' ? INITIAL_JOURNALS : []);
       }
 
       if (storedMovements) {
@@ -177,6 +229,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.error("Failed to load initial local state structures", e);
     }
+  };
+
+  const switchBusinessProfile = (profileId: 'b1' | 'b2') => {
+    if (profileId === activeBusinessId) return;
+
+    // 1. Persist the current active states into current profile's local storage keys before unloading
+    const getOldPrefixedKey = (key: string) => activeBusinessId === 'b1' ? key : `${key}_b2`;
+
+    localStorage.setItem(getOldPrefixedKey('sb_business_config'), JSON.stringify(businessConfig));
+    localStorage.setItem(getOldPrefixedKey('sb_products'), JSON.stringify(products));
+    localStorage.setItem(getOldPrefixedKey('sb_customers'), JSON.stringify(customers));
+    localStorage.setItem(getOldPrefixedKey('sb_suppliers'), JSON.stringify(suppliers));
+    localStorage.setItem(getOldPrefixedKey('sb_expenses'), JSON.stringify(expenses));
+    localStorage.setItem(getOldPrefixedKey('sb_invoices'), JSON.stringify(invoices));
+    localStorage.setItem(getOldPrefixedKey('sb_purchases'), JSON.stringify(purchases));
+    localStorage.setItem(getOldPrefixedKey('sb_journals'), JSON.stringify(journals));
+    localStorage.setItem(getOldPrefixedKey('sb_stock_movements'), JSON.stringify(stockMovements));
+    localStorage.setItem(getOldPrefixedKey('sb_notifications'), JSON.stringify(notifications));
+
+    // 2. Switch active business ID state
+    setActiveBusinessIdState(profileId);
+    localStorage.setItem('sb_active_business_id', profileId);
+
+    // 3. Load the selected profile's dataset
+    loadProfileData(profileId);
+  };
+
+  // Local storage synchronization on load
+  useEffect(() => {
+    loadProfileData(activeBusinessId);
   }, []);
 
   // Check Supabase connection on loading
@@ -199,17 +281,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const backupToSupabase = async (): Promise<SyncResult> => {
     setIsSyncing(true);
     try {
+      const getPrefixedKey = (k: string) => activeBusinessId === 'b1' ? k : `${k}_b2`;
       const payload = {
-        sb_business_config: businessConfig,
-        sb_products: products,
-        sb_customers: customers,
-        sb_suppliers: suppliers,
-        sb_expenses: expenses,
-        sb_invoices: invoices,
-        sb_purchases: purchases,
-        sb_journals: journals,
-        sb_stock_movements: stockMovements,
-        sb_notifications: notifications,
+        [getPrefixedKey('sb_business_config')]: businessConfig,
+        [getPrefixedKey('sb_products')]: products,
+        [getPrefixedKey('sb_customers')]: customers,
+        [getPrefixedKey('sb_suppliers')]: suppliers,
+        [getPrefixedKey('sb_expenses')]: expenses,
+        [getPrefixedKey('sb_invoices')]: invoices,
+        [getPrefixedKey('sb_purchases')]: purchases,
+        [getPrefixedKey('sb_journals')]: journals,
+        [getPrefixedKey('sb_stock_movements')]: stockMovements,
+        [getPrefixedKey('sb_notifications')]: notifications,
       };
       const res = await pushDataToSupabase(payload);
       if (res.success) {
@@ -230,58 +313,58 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await pullDataFromSupabase();
       if (res.success && res.data) {
-        const {
-          sb_business_config,
-          sb_products,
-          sb_customers,
-          sb_suppliers,
-          sb_expenses,
-          sb_invoices,
-          sb_purchases,
-          sb_journals,
-          sb_stock_movements,
-          sb_notifications,
-        } = res.data;
+        const getPrefixedKey = (k: string) => activeBusinessId === 'b1' ? k : `${k}_b2`;
 
-        if (sb_business_config) {
-          setBusinessConfigState(sb_business_config);
-          localStorage.setItem('sb_business_config', JSON.stringify(sb_business_config));
+        const bConfig = res.data[getPrefixedKey('sb_business_config')];
+        const bProducts = res.data[getPrefixedKey('sb_products')];
+        const bCustomers = res.data[getPrefixedKey('sb_customers')];
+        const bSuppliers = res.data[getPrefixedKey('sb_suppliers')];
+        const bExpenses = res.data[getPrefixedKey('sb_expenses')];
+        const bInvoices = res.data[getPrefixedKey('sb_invoices')];
+        const bPurchases = res.data[getPrefixedKey('sb_purchases')];
+        const bJournals = res.data[getPrefixedKey('sb_journals')];
+        const bMovements = res.data[getPrefixedKey('sb_stock_movements')];
+        const bNotifications = res.data[getPrefixedKey('sb_notifications')];
+
+        if (bConfig) {
+          setBusinessConfigState(bConfig);
+          localStorage.setItem(getPrefixedKey('sb_business_config'), JSON.stringify(bConfig));
         }
-        if (sb_products) {
-          setProducts(sb_products);
-          localStorage.setItem('sb_products', JSON.stringify(sb_products));
+        if (bProducts) {
+          setProducts(bProducts);
+          localStorage.setItem(getPrefixedKey('sb_products'), JSON.stringify(bProducts));
         }
-        if (sb_customers) {
-          setCustomers(sb_customers);
-          localStorage.setItem('sb_customers', JSON.stringify(sb_customers));
+        if (bCustomers) {
+          setCustomers(bCustomers);
+          localStorage.setItem(getPrefixedKey('sb_customers'), JSON.stringify(bCustomers));
         }
-        if (sb_suppliers) {
-          setSuppliers(sb_suppliers);
-          localStorage.setItem('sb_suppliers', JSON.stringify(sb_suppliers));
+        if (bSuppliers) {
+          setSuppliers(bSuppliers);
+          localStorage.setItem(getPrefixedKey('sb_suppliers'), JSON.stringify(bSuppliers));
         }
-        if (sb_expenses) {
-          setExpenses(sb_expenses);
-          localStorage.setItem('sb_expenses', JSON.stringify(sb_expenses));
+        if (bExpenses) {
+          setExpenses(bExpenses);
+          localStorage.setItem(getPrefixedKey('sb_expenses'), JSON.stringify(bExpenses));
         }
-        if (sb_invoices) {
-          setInvoices(sb_invoices);
-          localStorage.setItem('sb_invoices', JSON.stringify(sb_invoices));
+        if (bInvoices) {
+          setInvoices(bInvoices);
+          localStorage.setItem(getPrefixedKey('sb_invoices'), JSON.stringify(bInvoices));
         }
-        if (sb_purchases) {
-          setPurchases(sb_purchases);
-          localStorage.setItem('sb_purchases', JSON.stringify(sb_purchases));
+        if (bPurchases) {
+          setPurchases(bPurchases);
+          localStorage.setItem(getPrefixedKey('sb_purchases'), JSON.stringify(bPurchases));
         }
-        if (sb_journals) {
-          setJournals(sb_journals);
-          localStorage.setItem('sb_journals', JSON.stringify(sb_journals));
+        if (bJournals) {
+          setJournals(bJournals);
+          localStorage.setItem(getPrefixedKey('sb_journals'), JSON.stringify(bJournals));
         }
-        if (sb_stock_movements) {
-          setStockMovements(sb_stock_movements);
-          localStorage.setItem('sb_stock_movements', JSON.stringify(sb_stock_movements));
+        if (bMovements) {
+          setStockMovements(bMovements);
+          localStorage.setItem(getPrefixedKey('sb_stock_movements'), JSON.stringify(bMovements));
         }
-        if (sb_notifications) {
-          setNotifications(sb_notifications);
-          localStorage.setItem('sb_notifications', JSON.stringify(sb_notifications));
+        if (bNotifications) {
+          setNotifications(bNotifications);
+          localStorage.setItem(getPrefixedKey('sb_notifications'), JSON.stringify(bNotifications));
         }
 
         const nowStr = new Date().toLocaleTimeString() + ' ' + getTodayBS();
@@ -305,17 +388,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // Debounce pushing to prevent rate limits and smooth performance
     const timer = setTimeout(() => {
+      const getPrefixedKey = (k: string) => activeBusinessId === 'b1' ? k : `${k}_b2`;
       const payload = {
-        sb_business_config: businessConfig,
-        sb_products: products,
-        sb_customers: customers,
-        sb_suppliers: suppliers,
-        sb_expenses: expenses,
-        sb_invoices: invoices,
-        sb_purchases: purchases,
-        sb_journals: journals,
-        sb_stock_movements: stockMovements,
-        sb_notifications: notifications,
+        [getPrefixedKey('sb_business_config')]: businessConfig,
+        [getPrefixedKey('sb_products')]: products,
+        [getPrefixedKey('sb_customers')]: customers,
+        [getPrefixedKey('sb_suppliers')]: suppliers,
+        [getPrefixedKey('sb_expenses')]: expenses,
+        [getPrefixedKey('sb_invoices')]: invoices,
+        [getPrefixedKey('sb_purchases')]: purchases,
+        [getPrefixedKey('sb_journals')]: journals,
+        [getPrefixedKey('sb_stock_movements')]: stockMovements,
+        [getPrefixedKey('sb_notifications')]: notifications,
       };
 
       pushDataToSupabase(payload).then((res) => {
@@ -332,6 +416,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => clearTimeout(timer);
   }, [
     isAutoSyncEnabled,
+    activeBusinessId,
     businessConfig,
     products,
     customers,
@@ -348,7 +433,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Set updates helper & persistence
   const saveToLocalStorage = (key: string, data: any) => {
     try {
-      localStorage.setItem(key, JSON.stringify(data));
+      const getPrefixedKey = (k: string) => activeBusinessId === 'b1' ? k : `${k}_b2`;
+      localStorage.setItem(getPrefixedKey(key), JSON.stringify(data));
     } catch (e) {
       console.error("Local storage sync error: ", e);
     }
@@ -913,33 +999,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   /**
-   * Hard reset back to authentic defaults
+   * Hard reset back to authentic defaults for active business profile
    */
   const resetToDefault = () => {
-    localStorage.clear();
-    setBusinessConfigState(INITIAL_BUSINESS_CONFIG);
-    setProducts(INITIAL_PRODUCTS);
-    setCustomers(INITIAL_CUSTOMERS);
-    setSuppliers(INITIAL_SUPPLIERS);
-    setExpenses(INITIAL_EXPENSES);
-    setInvoices(INITIAL_INVOICES);
-    setPurchases(INITIAL_PURCHASES);
-    setJournals(INITIAL_JOURNALS);
+    const getPrefixedKey = (k: string) => activeBusinessId === 'b1' ? k : `${k}_b2`;
 
+    const config = activeBusinessId === 'b1' ? INITIAL_BUSINESS_CONFIG : {
+      ...INITIAL_BUSINESS_CONFIG,
+      name: "Classic Stationery & Distributors",
+      nepaliName: "क्लासिक स्टेशनरी एण्ड डिस्ट्रिब्युटर्स",
+      address: "Biratnagar, Nepal",
+      phone: "+977-21-555123",
+      panVat: "601234567",
+      slogan: "Wholesale Office & Paper Merchants",
+    };
+    const prods = activeBusinessId === 'b1' ? INITIAL_PRODUCTS : [];
+    const custs = activeBusinessId === 'b1' ? INITIAL_CUSTOMERS : [];
+    const supps = activeBusinessId === 'b1' ? INITIAL_SUPPLIERS : [];
+    const exps = activeBusinessId === 'b1' ? INITIAL_EXPENSES : [];
+    const invs = activeBusinessId === 'b1' ? INITIAL_INVOICES : [];
+    const purs = activeBusinessId === 'b1' ? INITIAL_PURCHASES : [];
+    const jrnls = activeBusinessId === 'b1' ? INITIAL_JOURNALS : [];
+
+    setBusinessConfigState(config);
+    setProducts(prods);
+    setCustomers(custs);
+    setSuppliers(supps);
+    setExpenses(exps);
+    setInvoices(invs);
+    setPurchases(purs);
+    setJournals(jrnls);
     setStockMovements([]);
     setNotifications([]);
     setCurrentUserRole('Owner');
 
-    localStorage.setItem('sb_business_config', JSON.stringify(INITIAL_BUSINESS_CONFIG));
-    localStorage.setItem('sb_products', JSON.stringify(INITIAL_PRODUCTS));
-    localStorage.setItem('sb_customers', JSON.stringify(INITIAL_CUSTOMERS));
-    localStorage.setItem('sb_suppliers', JSON.stringify(INITIAL_SUPPLIERS));
-    localStorage.setItem('sb_expenses', JSON.stringify(INITIAL_EXPENSES));
-    localStorage.setItem('sb_invoices', JSON.stringify(INITIAL_INVOICES));
-    localStorage.setItem('sb_purchases', JSON.stringify(INITIAL_PURCHASES));
-    localStorage.setItem('sb_journals', JSON.stringify(INITIAL_JOURNALS));
-    localStorage.setItem('sb_stock_movements', JSON.stringify([]));
-    localStorage.setItem('sb_notifications', JSON.stringify([]));
+    localStorage.setItem(getPrefixedKey('sb_business_config'), JSON.stringify(config));
+    localStorage.setItem(getPrefixedKey('sb_products'), JSON.stringify(prods));
+    localStorage.setItem(getPrefixedKey('sb_customers'), JSON.stringify(custs));
+    localStorage.setItem(getPrefixedKey('sb_suppliers'), JSON.stringify(supps));
+    localStorage.setItem(getPrefixedKey('sb_expenses'), JSON.stringify(exps));
+    localStorage.setItem(getPrefixedKey('sb_invoices'), JSON.stringify(invs));
+    localStorage.setItem(getPrefixedKey('sb_purchases'), JSON.stringify(purs));
+    localStorage.setItem(getPrefixedKey('sb_journals'), JSON.stringify(jrnls));
+    localStorage.setItem(getPrefixedKey('sb_stock_movements'), JSON.stringify([]));
+    localStorage.setItem(getPrefixedKey('sb_notifications'), JSON.stringify([]));
     localStorage.setItem('sb_role', 'Owner');
   };
 
@@ -987,6 +1090,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         restoreFromSupabase,
         lastSyncedAt,
         isSyncing,
+        activeBusinessId,
+        switchBusinessProfile,
+        hasSecondBusiness,
+        enableSecondBusiness,
       }}
     >
       {children}

@@ -159,4 +159,5 @@ export interface BusinessConfig {
   invoiceHeaderNotes?: string;
   invoiceFooterNotes?: string;
   currencySymbol: string;
+  logo?: string;
 }

@@ -19,13 +19,29 @@ import { formatBSDate, getTodayBS } from './utils/nepaliCalendar';
 const SajiloAppContent: React.FC = () => {
   const { 
     businessConfig, notifications, markNotificationRead, 
-    currentUserRole, toggleRole 
+    currentUserRole, toggleRole, activeBusinessId, switchBusinessProfile,
+    hasSecondBusiness, enableSecondBusiness
   } = useApp();
+
+  const getProfileName = (id: 'b1' | 'b2') => {
+    try {
+      const key = id === 'b1' ? 'sb_business_config' : 'sb_business_config_b2';
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        return JSON.parse(stored).name || (id === 'b1' ? 'Primary Business' : 'Secondary Business');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return id === 'b1' ? 'Primary Business' : 'Secondary Business';
+  };
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [paletteOpen, setPaletteOpen] = useState<boolean>(false);
+  const [showAddBusinessModal, setShowAddBusinessModal] = useState<boolean>(false);
+  const [newBusinessName, setNewBusinessName] = useState<string>('');
 
   // Global Key binds listener (F2 -> billing, Ctrl+K or / -> command palette)
   useEffect(() => {
@@ -77,15 +93,60 @@ const SajiloAppContent: React.FC = () => {
           
           {/* Brand Panel inside Sidebar */}
           <div className="flex items-center gap-3 border-b border-gray-150/50 pb-4" id="brand-logo-panel">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-lg shadow-md shadow-blue-500/20" id="brand-icon">
-              S
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-lg shadow-md shadow-blue-500/20 overflow-hidden shrink-0" id="brand-icon">
+              {businessConfig.logo ? (
+                <img 
+                  src={businessConfig.logo} 
+                  alt="Logo" 
+                  className="h-full w-full object-cover p-1 bg-white" 
+                  referrerPolicy="no-referrer" 
+                />
+              ) : (
+                'S'
+              )}
             </div>
-            <div>
-              <h1 className="text-xs font-black text-gray-900 tracking-tight leading-none uppercase font-display">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xs font-black text-gray-900 tracking-tight leading-none uppercase font-display truncate">
                 {businessConfig.name}
               </h1>
               <span className="text-[9px] text-gray-400 font-sans font-semibold block mt-1" id="nepali-brand-caption">Operating Desk</span>
             </div>
+          </div>
+
+          {/* Business Profile Quick Switcher */}
+          <div className="bg-gray-50/70 p-1 rounded-xl border border-gray-150/50 flex gap-1 shadow-3xs shrink-0" id="profile-quick-switcher">
+            <button
+              onClick={() => switchBusinessProfile('b1')}
+              className={`flex-1 py-1.5 px-1 rounded-lg text-[9px] font-bold transition duration-150 text-center truncate ${
+                activeBusinessId === 'b1'
+                  ? 'bg-white text-blue-600 shadow-xs font-extrabold ring-1 ring-black/[0.04]'
+                  : 'text-gray-450 hover:text-gray-950 hover:bg-white/40'
+              }`}
+              title={getProfileName('b1')}
+            >
+              💼 {getProfileName('b1')}
+            </button>
+            {hasSecondBusiness ? (
+              <button
+                onClick={() => switchBusinessProfile('b2')}
+                className={`flex-1 py-1.5 px-1 rounded-lg text-[9px] font-bold transition duration-150 text-center truncate ${
+                  activeBusinessId === 'b2'
+                    ? 'bg-white text-blue-600 shadow-xs font-extrabold ring-1 ring-black/[0.04]'
+                    : 'text-gray-450 hover:text-gray-955 hover:bg-white/40'
+                }`}
+                title={getProfileName('b2')}
+              >
+                🏭 {getProfileName('b2')}
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowAddBusinessModal(true)}
+                className="flex-1 py-1.5 px-1 rounded-lg text-[9px] font-bold transition duration-150 text-center truncate text-blue-600 hover:bg-blue-50/60 cursor-pointer"
+                title="Add second business profile"
+              >
+                ➕ Add 2nd
+              </button>
+            )}
           </div>
 
           <div className="space-y-2" id="nav-group-title">
@@ -158,8 +219,17 @@ const SajiloAppContent: React.FC = () => {
 
             {/* Logo brand for mobile only, and workspace name on desktop */}
             <div className="flex items-center gap-2.5 md:hidden" id="brand-logo-panel-mobile">
-              <div className="h-8.5 w-8.5 rounded-lg bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-sm shadow-md shadow-blue-500/20" id="brand-icon-mobile">
-                S
+              <div className="h-8.5 w-8.5 rounded-lg bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-sm shadow-md shadow-blue-500/20 overflow-hidden" id="brand-icon-mobile">
+                {businessConfig.logo ? (
+                  <img 
+                    src={businessConfig.logo} 
+                    alt="Logo" 
+                    className="h-full w-full object-cover p-1 bg-white" 
+                    referrerPolicy="no-referrer" 
+                  />
+                ) : (
+                  'S'
+                )}
               </div>
               <div>
                 <h1 className="text-xs font-black text-gray-900 tracking-tight leading-none uppercase font-display">
@@ -252,6 +322,15 @@ const SajiloAppContent: React.FC = () => {
               )}
             </div>
 
+            {/* Active Business Profile Pulsing Badge */}
+            <div className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 bg-blue-50/60 border border-blue-100 text-blue-700 rounded-xl font-bold text-[10px] shadow-3xs uppercase tracking-wider" id="header-profile-badge">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600"></span>
+              </span>
+              <span className="max-w-[140px] truncate leading-none font-display">{businessConfig.name}</span>
+            </div>
+
             {/* Quick Active user indicator */}
             <div className="flex items-center gap-2.5 border-l border-gray-200 pl-3.5 text-xs" id="quick-user-pill">
               <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-600 font-extrabold flex items-center justify-center border border-blue-100 shadow-2xs">
@@ -311,6 +390,42 @@ const SajiloAppContent: React.FC = () => {
                 </button>
               </div>
 
+              {/* Mobile Business Profile Switcher */}
+              <div className="bg-gray-100/80 p-1 rounded-xl border border-gray-150 flex gap-1" id="mobile-profile-quick-switcher">
+                <button
+                  onClick={() => switchBusinessProfile('b1')}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold transition duration-150 text-center truncate ${
+                    activeBusinessId === 'b1'
+                      ? 'bg-white text-blue-600 shadow-xs ring-1 ring-black/[0.02]'
+                      : 'text-gray-450 hover:text-gray-900'
+                  }`}
+                >
+                  💼 {getProfileName('b1')}
+                </button>
+                {hasSecondBusiness ? (
+                  <button
+                    onClick={() => switchBusinessProfile('b2')}
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold transition duration-150 text-center truncate ${
+                      activeBusinessId === 'b2'
+                        ? 'bg-white text-blue-600 shadow-xs ring-1 ring-black/[0.02]'
+                        : 'text-gray-450 hover:text-gray-900'
+                    }`}
+                  >
+                    🏭 {getProfileName('b2')}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setShowAddBusinessModal(true);
+                    }}
+                    className="flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold transition duration-150 text-center truncate text-blue-600 hover:bg-white"
+                  >
+                    ➕ Add Profile
+                  </button>
+                )}
+              </div>
+
               <div className="space-y-1.5" id="mobile-drawer-tabs-list">
                 {allowedTabs.map((tab) => {
                   const Icon = tab.icon;
@@ -350,6 +465,77 @@ const SajiloAppContent: React.FC = () => {
         onClose={() => setPaletteOpen(false)} 
         setActiveTab={setActiveTab} 
       />
+
+      {/* ADD SECONDARY BUSINESS PROFILE MODAL */}
+      {showAddBusinessModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-add-second-business">
+          <div className="bg-white rounded-2xl border border-gray-150 p-6 max-w-sm w-full space-y-4 shadow-xl animate-fade-in">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-extrabold text-gray-900 text-sm">Add Second Business Profile</h3>
+                <p className="text-[10px] text-gray-400">Initialize a secondary ledger and inventory context</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddBusinessModal(false);
+                  setNewBusinessName('');
+                }}
+                className="p-1 text-gray-400 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-gray-600 text-[10px] block font-bold">Business Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Nepal Stationery & Prints"
+                  value={newBusinessName}
+                  onChange={(e) => setNewBusinessName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 font-bold"
+                />
+              </div>
+
+              <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 text-[10px] text-blue-750 space-y-1">
+                <span className="font-bold block">💡 Multi-Ledger Support Enabled</span>
+                <span>You will be able to manage separate billing, inventory, suppliers, clients, journal entries, and reporting for this entity.</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddBusinessModal(false);
+                  setNewBusinessName('');
+                }}
+                className="flex-1 py-2 bg-gray-50 text-gray-700 hover:bg-gray-100 font-bold rounded-lg text-xs transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!newBusinessName.trim()) {
+                    alert('Please enter a valid business name.');
+                    return;
+                  }
+                  enableSecondBusiness(newBusinessName);
+                  setShowAddBusinessModal(false);
+                  setNewBusinessName('');
+                  alert('Secondary business profile created! You can now toggle profiles via the sidebar or Settings page.');
+                }}
+                className="flex-1 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 text-xs shadow-md shadow-blue-500/10 transition"
+              >
+                Create Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -5,17 +5,22 @@ import {
   HelpCircle, ChevronRight, Calculator, TrendingUp, Sparkles, Filter, Search,
   Calendar, ArrowDownLeft, ArrowUpRight, ChevronLeft, ChevronRight as ChevronRightIcon, FileCheck
 } from 'lucide-react';
-import { formatBSDate, getFiscalYear, FISCAL_YEAR_OPTIONS, getTodayBS, convertADtoBS, convertBStoAD } from '../utils/nepaliCalendar';
+import { formatBSDate, getFiscalYear, FISCAL_YEAR_OPTIONS, getTodayBS, convertADtoBS, convertBStoAD, NEP_MONTHS_EN, numberToWords } from '../utils/nepaliCalendar';
 
 export const Bookkeeping: React.FC = () => {
-  const { journals, invoices, expenses, products, suppliers, customers, purchases } = useApp();
+  const { journals, invoices, expenses, products, suppliers, customers, purchases, businessConfig } = useApp();
 
   // Active view segment: 'daybook' | 'pnl' | 'balancesheet' | 'journal'
   const [activeSegment, setActiveSegment] = useState<'daybook' | 'pnl' | 'balancesheet' | 'journal'>('daybook');
 
+  // Printing State
+  const [selectedJournalForPrint, setSelectedJournalForPrint] = useState<any | null>(null);
+  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait');
+
   // Ledger filter states
   const [journalSearch, setJournalSearch] = useState<string>('');
   const [fiscalYear, setFiscalYear] = useState<string>('All');
+  const [bookkeepingMonth, setBookkeepingMonth] = useState<string>('All');
 
   // Daybook Specific States
   const [selectedDaybookDate, setSelectedDaybookDate] = useState<string>(getTodayBS());
@@ -128,9 +133,35 @@ export const Bookkeeping: React.FC = () => {
   });
 
   // FILTERED COLLECTIONS FOR BOOKKEEPING CALCULATIONS
-  const targetInvoices = invoices.filter(inv => fiscalYear === 'All' || getFiscalYear(inv.bsDate) === fiscalYear);
-  const targetExpenses = expenses.filter(exp => fiscalYear === 'All' || getFiscalYear(exp.bsDate) === fiscalYear);
-  const targetJournals = journals.filter(j => fiscalYear === 'All' || getFiscalYear(j.bsDate) === fiscalYear);
+  const targetInvoices = invoices.filter(inv => {
+    const matchesFY = fiscalYear === 'All' || getFiscalYear(inv.bsDate) === fiscalYear;
+    const matchesMonth = bookkeepingMonth === 'All' || (() => {
+      if (!inv.bsDate || !inv.bsDate.includes('-')) return false;
+      const m = parseInt(inv.bsDate.split('-')[1]);
+      return m === (NEP_MONTHS_EN.indexOf(bookkeepingMonth) + 1);
+    })();
+    return matchesFY && matchesMonth;
+  });
+
+  const targetExpenses = expenses.filter(exp => {
+    const matchesFY = fiscalYear === 'All' || getFiscalYear(exp.bsDate) === fiscalYear;
+    const matchesMonth = bookkeepingMonth === 'All' || (() => {
+      if (!exp.bsDate || !exp.bsDate.includes('-')) return false;
+      const m = parseInt(exp.bsDate.split('-')[1]);
+      return m === (NEP_MONTHS_EN.indexOf(bookkeepingMonth) + 1);
+    })();
+    return matchesFY && matchesMonth;
+  });
+
+  const targetJournals = journals.filter(j => {
+    const matchesFY = fiscalYear === 'All' || getFiscalYear(j.bsDate) === fiscalYear;
+    const matchesMonth = bookkeepingMonth === 'All' || (() => {
+      if (!j.bsDate || !j.bsDate.includes('-')) return false;
+      const m = parseInt(j.bsDate.split('-')[1]);
+      return m === (NEP_MONTHS_EN.indexOf(bookkeepingMonth) + 1);
+    })();
+    return matchesFY && matchesMonth;
+  });
 
   // 1. CALCULATE PROFIT & LOSS METRICS (INCOME STATEMENT)
   const totalRevenues = targetInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
@@ -199,7 +230,7 @@ export const Bookkeeping: React.FC = () => {
     setSelectedDaybookDate(bsConverted);
   };
 
-  const triggerPrintForElement = (elementId: string, titleName: string) => {
+  const triggerPrintForElement = (elementId: string, titleName: string, orientation: 'portrait' | 'landscape' = 'portrait') => {
     const el = document.getElementById(elementId);
     if (!el) {
       window.print();
@@ -249,7 +280,7 @@ export const Bookkeeping: React.FC = () => {
               padding: 0 !important;
             }
             @page {
-              size: A4;
+              size: A4 ${orientation};
               margin: 15mm;
             }
             @media print {
@@ -308,19 +339,36 @@ export const Bookkeeping: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3" id="accounting-controls">
           {/* Fiscal Year Filter Dropdown - Only show for non-daybook segments */}
           {activeSegment !== 'daybook' && (
-            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-150 rounded-xl px-2.5 py-1.5 text-xs animate-fade-in" id="bookkeeping-fy-wrapper">
-              <span className="text-gray-400 font-bold select-none">Fiscal Year:</span>
-              <select
-                id="select-bookkeeping-fy"
-                value={fiscalYear}
-                onChange={(e) => setFiscalYear(e.target.value)}
-                className="bg-transparent font-extrabold text-gray-800 outline-none cursor-pointer"
-              >
-                {FISCAL_YEAR_OPTIONS.map(fy => (
-                  <option key={fy} value={fy}>{fy === 'All' ? 'All Fiscal Years' : `FY ${fy}`}</option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-150 rounded-xl px-2.5 py-1.5 text-xs animate-fade-in" id="bookkeeping-fy-wrapper">
+                <span className="text-gray-400 font-bold select-none">Fiscal Year:</span>
+                <select
+                  id="select-bookkeeping-fy"
+                  value={fiscalYear}
+                  onChange={(e) => setFiscalYear(e.target.value)}
+                  className="bg-transparent font-extrabold text-gray-800 outline-none cursor-pointer"
+                >
+                  {FISCAL_YEAR_OPTIONS.map(fy => (
+                    <option key={fy} value={fy}>{fy === 'All' ? 'All Fiscal Years' : `FY ${fy}`}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-150 rounded-xl px-2.5 py-1.5 text-xs animate-fade-in" id="bookkeeping-month-wrapper">
+                <span className="text-gray-400 font-bold select-none">Month:</span>
+                <select
+                  id="select-bookkeeping-month"
+                  value={bookkeepingMonth}
+                  onChange={(e) => setBookkeepingMonth(e.target.value)}
+                  className="bg-transparent font-extrabold text-gray-800 outline-none cursor-pointer"
+                >
+                  <option value="All">All Months</option>
+                  {NEP_MONTHS_EN.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
 
           <div className="flex gap-2" id="accounting-tab-toggle">
@@ -943,12 +991,13 @@ export const Bookkeeping: React.FC = () => {
                   <th id="th-j-dr-ac" className="p-4">Debit Account</th>
                   <th id="th-j-cr-ac" className="p-4">Credit Account</th>
                   <th id="th-j-amt" className="p-4 text-right">Amount (Rs)</th>
+                  <th id="th-j-print" className="p-4 text-center w-20">Voucher</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 text-gray-650" id="general-journal-tbody">
                 {filteredJournals.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-10 text-gray-400">
+                    <td colSpan={7} className="text-center py-10 text-gray-400">
                       No matching double-entry ledger entries detected.
                     </td>
                   </tr>
@@ -976,11 +1025,208 @@ export const Bookkeeping: React.FC = () => {
                       <td className="p-4 text-right font-mono font-black text-gray-900">
                         Rs. {j.amount.toLocaleString()}
                       </td>
+                      <td className="p-4 text-center">
+                        <button
+                          id={`btn-print-jv-${j.id}`}
+                          onClick={() => {
+                            setSelectedJournalForPrint(j);
+                            setPrintOrientation('portrait');
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 rounded text-[10px] font-bold text-gray-600 hover:text-blue-600 transition"
+                          title="Print Nepal Journal Voucher (गोश्वारा भौचर)"
+                        >
+                          <Printer className="h-3 w-3" />
+                          <span>भौचर</span>
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: NEPAL JOURNAL VOUCHER (गोश्वारा भौचर) PRINT HUB */}
+      {selectedJournalForPrint && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto" id="modal-journal-print">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 space-y-4 border text-left" id="journal-print-container">
+            
+            {/* Action Bar */}
+            <div className="flex flex-wrap justify-between items-center gap-3 border-b pb-3" id="journal-print-action-bar">
+              <div>
+                <h3 className="font-bold text-gray-900 text-xs uppercase tracking-wider">Nepal Journal Voucher (गोश्वारा भौचर)</h3>
+                <p className="text-[10px] text-gray-450 font-medium">Standardized double-entry transaction record for Nepalese auditing compliance</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-gray-500">Orientation:</span>
+                <button 
+                  onClick={() => setPrintOrientation('portrait')}
+                  className={`px-2.5 py-1 text-[10px] font-extrabold rounded-md border transition ${
+                    printOrientation === 'portrait' 
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs' 
+                      : 'bg-white text-gray-700 border-gray-250 hover:bg-gray-50'
+                  }`}
+                >
+                  Portrait (ठाडो) - Best
+                </button>
+                <button 
+                  onClick={() => setPrintOrientation('landscape')}
+                  className={`px-2.5 py-1 text-[10px] font-extrabold rounded-md border transition ${
+                    printOrientation === 'landscape' 
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs' 
+                      : 'bg-white text-gray-700 border-gray-250 hover:bg-gray-50'
+                  }`}
+                >
+                  Landscape (तेर्सो)
+                </button>
+                <button
+                  id="btn-trigger-jv-print"
+                  onClick={() => triggerPrintForElement('journal-voucher-print-content', 'Journal Voucher', printOrientation)}
+                  className="flex items-center gap-1 px-3 py-1 bg-emerald-600 text-white text-[10px] font-black rounded-lg hover:bg-emerald-700 transition shadow-xs"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Print Voucher
+                </button>
+                <button 
+                  onClick={() => setSelectedJournalForPrint(null)}
+                  className="text-gray-400 hover:text-gray-600 text-xs px-2"
+                >
+                  Close ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Print Sheet Area */}
+            <div className="bg-gray-50 border p-4 rounded-xl max-h-[60vh] overflow-y-auto" id="journal-preview-viewport">
+              <div 
+                id="journal-voucher-print-content" 
+                className="bg-white border p-6 mx-auto shadow-sm text-gray-900 text-xs leading-relaxed" 
+                style={{ width: '100%', maxWidth: printOrientation === 'portrait' ? '650px' : '100%', minHeight: '400px' }}
+              >
+                
+                {/* Header Information */}
+                <div className="text-center space-y-1.5 border-b-2 border-double border-gray-800 pb-3" id="jv-sheet-header">
+                  {businessConfig.logo && (
+                    <img src={businessConfig.logo} alt="Company Logo" className="h-10 mx-auto object-contain mb-1" referrerPolicy="no-referrer" />
+                  )}
+                  <h1 className="text-sm font-black text-gray-950 uppercase">{businessConfig.nepaliName || businessConfig.name}</h1>
+                  <p className="text-[10px] text-gray-500 font-semibold">{businessConfig.address}</p>
+                  <p className="text-[10px] text-gray-500 font-mono">फोन नं: {businessConfig.phone} | PAN/VAT No: {businessConfig.panVat || 'N/A'}</p>
+                  
+                  <div className="pt-2">
+                    <span className="inline-block px-4 py-1 border border-gray-900 text-[11px] font-black tracking-widest uppercase rounded">
+                      गोश्वारा भौचर (JOURNAL VOUCHER)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Meta Rows */}
+                <div className="grid grid-cols-2 justify-between items-center text-[10px] py-3 font-semibold border-b border-gray-200" id="jv-sheet-meta">
+                  <div className="space-y-1 text-left">
+                    <p><span className="text-gray-500">भौचर नं. (Voucher No):</span> <span className="font-mono font-bold text-gray-900">JV-{selectedJournalForPrint.id.slice(0, 8).toUpperCase()}</span></p>
+                    <p><span className="text-gray-500">सन्दर्भ संकेत (Ref Code):</span> <span className="font-mono text-gray-800">{selectedJournalForPrint.reference || 'N/A'}</span></p>
+                  </div>
+                  <div className="space-y-1 text-right">
+                    <p><span className="text-gray-500">मिति (BS Date):</span> <span className="font-mono text-gray-900">{selectedJournalForPrint.bsDate}</span></p>
+                    <p><span className="text-gray-500">मिति (AD Date):</span> <span className="font-mono text-gray-900">{selectedJournalForPrint.date}</span></p>
+                  </div>
+                </div>
+
+                {/* Entry Double-Entry Table */}
+                <div className="mt-4 border border-gray-800 rounded-lg overflow-hidden text-[10px]" id="jv-table-wrapper">
+                  <table className="w-full text-left border-collapse" id="jv-details-table">
+                    <thead>
+                      <tr className="bg-gray-100 text-gray-900 font-bold border-b border-gray-800 text-[9px] uppercase">
+                        <th id="th-jv-sn" className="p-2 border-r border-gray-800 w-12 text-center">क्र.सं. (S.N)</th>
+                        <th id="th-jv-part" className="p-2 border-r border-gray-800">खाता विवरण (Particulars Account Head)</th>
+                        <th id="th-jv-lf" className="p-2 border-r border-gray-800 w-20 text-center">खाता पाना (L.F)</th>
+                        <th id="th-jv-dr" className="p-2 border-r border-gray-800 text-right w-28">डेबिट (Debit Rs)</th>
+                        <th id="th-jv-cr" className="p-2 text-right w-28">क्रेडिट (Credit Rs)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-300 font-medium" id="jv-details-tbody">
+                      {/* Debit line */}
+                      <tr className="align-top">
+                        <td className="p-2 border-r border-gray-800 text-center">1</td>
+                        <td className="p-2 border-r border-gray-800 font-bold">
+                          Dr. {selectedJournalForPrint.debitAccount}
+                        </td>
+                        <td className="p-2 border-r border-gray-800 text-center">-</td>
+                        <td className="p-2 border-r border-gray-800 text-right font-mono font-bold">
+                          Rs. {selectedJournalForPrint.amount.toLocaleString()}
+                        </td>
+                        <td className="p-2 text-right font-mono text-gray-300">-</td>
+                      </tr>
+                      {/* Credit line */}
+                      <tr className="align-top">
+                        <td className="p-2 border-r border-gray-800 text-center">2</td>
+                        <td className="p-2 border-r border-gray-800 pl-8 font-bold">
+                          To {selectedJournalForPrint.creditAccount}
+                        </td>
+                        <td className="p-2 border-r border-gray-800 text-center">-</td>
+                        <td className="p-2 border-r border-gray-800 text-right font-mono text-gray-300">-</td>
+                        <td className="p-2 text-right font-mono font-bold">
+                          Rs. {selectedJournalForPrint.amount.toLocaleString()}
+                        </td>
+                      </tr>
+                      {/* Narration line */}
+                      <tr className="align-top bg-gray-50/50">
+                        <td className="p-2 border-r border-gray-800"></td>
+                        <td className="p-2 border-r border-gray-800 italic text-[9px] text-gray-500 pb-4">
+                          (संक्षिप्त विवरण / Narration: {selectedJournalForPrint.description})
+                        </td>
+                        <td className="p-2 border-r border-gray-800"></td>
+                        <td className="p-2 border-r border-gray-800"></td>
+                        <td className="p-2"></td>
+                      </tr>
+                      {/* Total line */}
+                      <tr className="bg-gray-100 font-bold border-t border-gray-800 text-[10px]">
+                        <td colSpan={3} className="p-2 border-r border-gray-800 text-right uppercase">
+                          जम्मा (Total Amount):
+                        </td>
+                        <td className="p-2 border-r border-gray-800 text-right font-mono font-black text-gray-950">
+                          Rs. {selectedJournalForPrint.amount.toLocaleString()}
+                        </td>
+                        <td className="p-2 text-right font-mono font-black text-gray-950">
+                          Rs. {selectedJournalForPrint.amount.toLocaleString()}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Amount in words */}
+                <div className="mt-3.5 p-2 bg-gray-50 border border-dashed rounded font-mono text-[9px] text-gray-600" id="jv-amount-words">
+                  <span className="font-extrabold uppercase text-gray-550 block">अक्षरेपी (Amount in words):</span>
+                  <span className="text-gray-900 font-bold block mt-0.5">{numberToWords(selectedJournalForPrint.amount)}</span>
+                </div>
+
+                {/* Vouchers Signature block */}
+                <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-dashed text-[9px] text-center font-bold text-gray-600" id="jv-signatures">
+                  <div className="space-y-6">
+                    <div className="h-6"></div>
+                    <p className="border-t border-gray-400 pt-1.5">तयार गर्ने<br/><span className="text-[8px] font-normal text-gray-400">Prepared By</span></p>
+                  </div>
+                  <div className="space-y-6">
+                    <div className="h-6"></div>
+                    <p className="border-t border-gray-400 pt-1.5">जाँच्ने<br/><span className="text-[8px] font-normal text-gray-400">Checked By</span></p>
+                  </div>
+                  <div className="space-y-6">
+                    <div className="h-6"></div>
+                    <p className="border-t border-gray-400 pt-1.5">स्वीकृत गर्ने<br/><span className="text-[8px] font-normal text-gray-400">Approved By</span></p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Hint box */}
+            <div className="p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] text-blue-800 flex items-center gap-1.5 font-medium leading-relaxed" id="jv-print-help">
+              <span>💡 Vouchers printed in <strong>Portrait</strong> fit perfectly on standard A4 vertical sheets, leaving equal spacing for signature approvals. Print option will trigger standard system dialogs safely.</span>
+            </div>
+
           </div>
         </div>
       )}

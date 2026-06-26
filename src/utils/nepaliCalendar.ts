@@ -216,3 +216,58 @@ export function getFiscalYear(bsDateString: string): string {
 }
 
 export const FISCAL_YEAR_OPTIONS = ['All', '2079/80', '2080/81', '2081/82', '2082/83', '2083/84', '2084/85'];
+
+export function numberToWords(num: number): string {
+  if (num === 0) return 'Zero';
+  
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 
+                'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  
+  function convertLessThanThousand(n: number): string {
+    if (n === 0) return '';
+    let str = '';
+    if (n >= 100) {
+      str += ones[Math.floor(n / 100)] + ' Hundred ';
+      n %= 100;
+    }
+    if (n >= 20) {
+      str += tens[Math.floor(n / 10)] + ' ';
+      n %= 10;
+    }
+    if (n > 0) {
+      str += ones[n] + ' ';
+    }
+    return str.trim();
+  }
+  
+  let result = '';
+  let temp = Math.floor(num);
+  
+  if (temp >= 10000000) {
+    const crore = Math.floor(temp / 10000000);
+    result += convertLessThanThousand(crore) + ' Crore ';
+    temp %= 10000000;
+  }
+  if (temp >= 100000) {
+    const lakh = Math.floor(temp / 100000);
+    result += convertLessThanThousand(lakh) + ' Lakh ';
+    temp %= 100000;
+  }
+  if (temp >= 1000) {
+    const thousand = Math.floor(temp / 1000);
+    result += convertLessThanThousand(thousand) + ' Thousand ';
+    temp %= 1000;
+  }
+  if (temp > 0) {
+    result += convertLessThanThousand(temp);
+  }
+  
+  const decimals = Math.round((num - Math.floor(num)) * 100);
+  if (decimals > 0) {
+    result = result.trim() + ' and ' + convertLessThanThousand(decimals) + ' Paisa';
+  }
+  
+  return result.trim() + ' Rupees Only';
+}
+

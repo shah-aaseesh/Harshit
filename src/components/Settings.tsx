@@ -1,31 +1,15 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
-  Settings as SettingsIcon, ShieldAlert, Sliders, Database, Save, 
-  RefreshCw, Info, Store, FileText, UserCheck, AlertCircle,
-  Cloud, Download, Upload, CheckCircle, XCircle
+  Settings as SettingsIcon, Save, Store, Upload, XCircle
 } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const { 
-    businessConfig, setBusinessConfig, currentUserRole, setCurrentUserRole, 
-    resetToDefault,
-    isSupabaseConfigured, isAutoSyncEnabled, setIsAutoSyncEnabled,
-    supabaseStatus, checkSupabaseConnection, backupToSupabase,
-    restoreFromSupabase, lastSyncedAt, isSyncing
+    businessConfig, setBusinessConfig, hasSecondBusiness, enableSecondBusiness, activeBusinessId, switchBusinessProfile
   } = useApp();
 
-  const handleBackupManual = async () => {
-    const res = await backupToSupabase();
-    alert(res.message + (res.error ? '\n\nError details: ' + res.error : ''));
-  };
-
-  const handleRestoreManual = async () => {
-    if (confirm("⚠️ WARNING: Syncing down from your cloud backup will completely overwrite your current browser data. Are you sure you wish to pull data from Supabase?")) {
-      const res = await restoreFromSupabase();
-      alert(res.message + (res.error ? '\n\nError details: ' + res.error : ''));
-    }
-  };
+  const [secName, setSecName] = useState('');
 
   // Profile forms
   const [name, setName] = useState<string>(businessConfig.name);
@@ -38,9 +22,29 @@ export const Settings: React.FC = () => {
   const [slogan, setSlogan] = useState<string>(businessConfig.slogan || '');
   const [headerN, setHeaderN] = useState<string>(businessConfig.invoiceHeaderNotes || '');
   const [footerN, setFooterN] = useState<string>(businessConfig.invoiceFooterNotes || '');
+  const [logo, setLogo] = useState<string>(businessConfig.logo || '');
+  const [isDragging, setIsDragging] = useState<boolean>(false);
 
   const [saving, setSaving] = useState<boolean>(false);
 
+  const handleFile = (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, etc.)');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image size exceeds 2MB limit.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result && typeof e.target.result === 'string') {
+        setLogo(e.target.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,237 +62,110 @@ export const Settings: React.FC = () => {
         slogan: slogan || undefined,
         invoiceHeaderNotes: headerN || undefined,
         invoiceFooterNotes: footerN || undefined,
-        currencySymbol: "Rs."
+        currencySymbol: "Rs.",
+        logo: logo || undefined
       });
       setSaving(false);
       alert("Business Settings and invoice print templates updated successfully!");
     }, 400); // quick fake delay for sleek feeling
   };
 
-  const handleHardReset = () => {
-    if (confirm("🚨 WARNING: This will permanently wipe all local billing transactions, audited stock history, custom client lists, and restore the default state. Continue?")) {
-      resetToDefault();
-      window.location.reload(); // refresh to load standard seeds cleanly
-    }
-  };
-
   return (
-    <div className="space-y-6 max-w-4xl mx-auto" id="settings-module-container">
+    <div className="space-y-6 max-w-2xl mx-auto" id="settings-module-container">
       
       {/* Page header */}
       <div className="border-b border-gray-100 pb-4" id="settings-header">
         <h1 className="text-xl font-semibold text-gray-950 flex items-center gap-2">
           <SettingsIcon className="h-5 w-5 text-blue-500" /> Sajilo Configuration Panel
         </h1>
-        <p className="text-xs text-gray-400">Configure corporate tax indices, toggle mockup staff accounts permissions, and manage sandbox resets</p>
+        <p className="text-xs text-gray-400 font-sans">Configure corporate profile details, standard tax indices, and corporate brand logo settings</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="settings-layout-grid">
-        
-        {/* COLUMN LEFT: ROLES & DEMO PLAYGROUND */}
-        <div className="space-y-4 md:col-span-1" id="roles-playground-panel">
-          
-          {/* Mock Accounts */}
-          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-xxs space-y-3" id="role-selection-card">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block flex items-center gap-1">
-              <UserCheck className="h-3.5 w-3.5 text-blue-500" /> Account Permission Swapper
-            </span>
-            <p className="text-xs text-gray-500 leading-snug">
-              Swap user roles instantly to test custom permissions! SajiloBiz locks specific actions depending on who is logged in:
-            </p>
+      <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-xxs" id="business-config-panel">
+        <span className="text-[10px] font-bold text-gray-405 uppercase tracking-wider block mb-4 flex items-center gap-1">
+          <Store className="h-3.5 w-3.5 text-blue-500" /> Corporate Profile Configuration & Invoice Print Settings
+        </span>
 
-            <div className="space-y-2 pt-1" id="roles-radio-group">
-              {(['Owner', 'Manager', 'Staff'] as const).map((role) => (
-                <label 
-                  key={role}
-                  id={`label-role-${role}`}
-                  className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs font-semibold cursor-pointer transition ${
-                    currentUserRole === role 
-                      ? 'bg-blue-50/40 border-blue-200 text-blue-700' 
-                      : 'bg-white border-gray-100 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    id={`radio-role-${role}`}
-                    name="currentUserRole"
-                    value={role}
-                    checked={currentUserRole === role}
-                    onChange={() => setCurrentUserRole(role)}
-                    className="sr-only"
-                  />
-                  <div>
-                    <span className="block">{role} Desk</span>
-                    <span className="text-[9px] text-gray-400 font-normal block leading-none mt-0.5">
-                      {role === 'Owner' && 'Unrestricted access (Clear stock, void journals, full balance sheet)'}
-                      {role === 'Manager' && 'Product creation, checking POS, settling client dues limit'}
-                      {role === 'Staff' && 'Strict billing & checkouts only (Reports/bookkeeping hidden)'}
-                    </span>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Supabase Cloud Secure Backup & Sync */}
-          <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)] space-y-4 text-xs" id="supabase-sync-card">
-            <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block flex items-center gap-1.5">
-              <Cloud className="h-4 w-4 text-blue-500" /> Supabase Secure Sync
-            </span>
-            
-            {/* Connection state banner */}
-            {!isSupabaseConfigured ? (
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-100 text-[11px] text-amber-800 space-y-1">
-                <div className="font-semibold flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5 text-amber-600" /> Cloud Database Not Switched On
-                </div>
-                <p className="leading-normal">
-                  Connect your custom Supabase project! Please assign database properties in your environment settings:
-                </p>
-                <div className="font-mono text-[9px] bg-white p-1.5 rounded border border-amber-100 mt-1 select-all break-all text-xs">
-                  VITE_SUPABASE_URL<br/>
-                  VITE_SUPABASE_ANON_KEY
-                </div>
-              </div>
-            ) : supabaseStatus && !supabaseStatus.success ? (
-              <div className="p-3 bg-rose-50 rounded-lg border border-rose-100 text-[11px] text-rose-800 space-y-1">
-                <div className="font-semibold flex items-center gap-1 flex-wrap">
-                  <XCircle className="h-3.5 w-3.5 text-rose-600" /> Connection Error
-                </div>
-                <p className="leading-normal">{supabaseStatus.message}</p>
-                <button 
-                  type="button"
-                  onClick={checkSupabaseConnection}
-                  className="mt-1.5 px-2 py-1 bg-white hover:bg-rose-100 border border-rose-200 text-rose-700 font-semibold rounded text-[9px] transition"
-                >
-                  Retry Connection
-                </button>
-              </div>
-            ) : supabaseStatus && !supabaseStatus.tableExists ? (
-              <div className="p-3 bg-amber-50/70 rounded-lg border border-amber-200 text-[11px] text-amber-850 space-y-2">
-                <div className="font-semibold flex items-center gap-1">
-                  <Database className="h-3.5 w-3.5 text-amber-600" /> State Table Missing
-                </div>
-                <p className="leading-relaxed text-gray-500">
-                  Connected to raw Supabase! However, the table <code className="bg-white px-1 py-0.5 rounded font-mono border text-[10px]">app_state</code> is missing. Execute this raw query inside your Supabase SQL Editor:
-                </p>
-                <pre className="text-[9px] bg-white p-2 rounded border border-amber-205 overflow-x-auto font-mono select-all text-gray-600 leading-normal text-xs whitespace-pre-wrap">
-{`CREATE TABLE IF NOT EXISTS app_state (
-  key TEXT PRIMARY KEY,
-  value JSONB NOT NULL,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);`}
-                </pre>
-                <button 
-                  type="button"
-                  onClick={checkSupabaseConnection}
-                  className="w-full py-1.5 bg-white hover:bg-amber-100 border border-amber-300 text-amber-700 font-bold rounded transition text-center text-[10px]"
-                >
-                  Verify Table Existence
-                </button>
-              </div>
-            ) : (
-              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100 text-[11px] text-emerald-800 space-y-1">
-                <div className="font-semibold flex items-center gap-1">
-                  <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> Fully Connected to Cloud Db!
-                </div>
-                <p className="leading-normal text-xs text-emerald-700">
-                  Your business bookkeeping ledger is secured with redundant cloud encryption safely.
-                </p>
-                <div className="flex items-center justify-between mt-1 text-[9px] text-emerald-600 font-medium pt-1 border-t border-emerald-100">
-                  <span>Status: Operational (OK)</span>
-                  <button 
-                    type="button"
-                    onClick={checkSupabaseConnection}
-                    className="underline hover:text-emerald-800"
-                  >
-                    Refresh
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Sync Controls */}
-            {isSupabaseConfigured && supabaseStatus && supabaseStatus.success && supabaseStatus.tableExists && (
-              <div className="space-y-3 pt-1">
-                {/* Auto-sync Toggle */}
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="space-y-0.5 pr-2">
-                    <span className="text-xs font-semibold text-gray-700 block text-[11px]">Realtime Cloud Sync</span>
-                    <span className="text-[9px] text-gray-400 block leading-tight">Back up changes to Supabase instantly</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsAutoSyncEnabled(!isAutoSyncEnabled)}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      isAutoSyncEnabled ? 'bg-blue-600' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        isAutoSyncEnabled ? 'translate-x-4' : 'translate-x-0'
-                      }`}
+        <form onSubmit={handleUpdateProfile} className="space-y-4 text-xs" id="business-profile-form">
+            {/* Logo Upload Section */}
+            <div className="space-y-1.5 border-b border-gray-100 pb-4" id="logo-upload-section">
+              <label className="text-gray-600 block font-semibold">Corporate Brand Logo (व्यापारिक लोगो)</label>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                {/* Preview Box */}
+                <div className="relative h-20 w-20 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0 shadow-inner" id="logo-preview-box">
+                  {logo ? (
+                    <img 
+                      src={logo} 
+                      alt="Uploaded Business Logo" 
+                      className="h-full w-full object-contain p-1" 
+                      referrerPolicy="no-referrer"
                     />
-                  </button>
+                  ) : (
+                    <div className="h-full w-full bg-gradient-to-tr from-blue-600 to-blue-500 flex items-center justify-center text-white font-black text-2xl shadow-inner">
+                      S
+                    </div>
+                  )}
                 </div>
 
-                {/* Pull / Push Manual buttons */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <button
-                    type="button"
-                    disabled={isSyncing}
-                    onClick={handleBackupManual}
-                    className="py-2 px-2.5 bg-blue-50 border border-blue-100 hover:bg-blue-100 text-blue-700 font-bold rounded-lg flex items-center justify-center gap-1 disabled:opacity-50 transition"
-                  >
-                    <Upload className="h-3.5 w-3.5" /> Push State
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSyncing}
-                    onClick={handleRestoreManual}
-                    className="py-2 px-2.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold rounded-lg flex items-center justify-center gap-1 disabled:opacity-50 transition"
-                  >
-                    <Download className="h-3.5 w-3.5" /> Pull Sync
-                  </button>
+                {/* Drag and Drop Zone */}
+                <div 
+                  className={`flex-1 w-full border-2 border-dashed rounded-xl p-4 transition text-center cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    isDragging 
+                      ? 'border-blue-500 bg-blue-50/50' 
+                      : logo 
+                        ? 'border-gray-200 bg-gray-50/30 hover:bg-gray-50/60' 
+                        : 'border-gray-300 hover:border-blue-400 bg-white hover:bg-gray-50/40'
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                      handleFile(e.dataTransfer.files[0]);
+                    }
+                  }}
+                  onClick={() => document.getElementById('logo-file-input')?.click()}
+                >
+                  <input 
+                    type="file"
+                    id="logo-file-input"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <Upload className="h-5 w-5 text-gray-400" />
+                  <span className="text-gray-750 font-bold text-xs">
+                    {logo ? 'Replace Logo Image' : 'Select Logo Image'}
+                  </span>
+                  <span className="text-[10px] text-gray-400 leading-none">
+                    Drag & drop or click to browse. Max 2MB image.
+                  </span>
                 </div>
 
-                {/* Synced banner */}
-                {lastSyncedAt && (
-                  <div className="text-[10px] text-gray-400 font-medium flex items-center justify-between px-1 pt-1 border-t border-gray-50">
-                    <span>Cloud Sync History</span>
-                    <span className="font-bold text-gray-500">{lastSyncedAt}</span>
-                  </div>
+                {/* Remove button if logo exists */}
+                {logo && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLogo('');
+                    }}
+                    className="py-2 px-3 hover:bg-rose-50 text-rose-600 hover:text-rose-700 font-bold border border-rose-100 rounded-lg text-xs transition duration-200 flex items-center gap-1 cursor-pointer shrink-0"
+                  >
+                    <XCircle className="h-3.5 w-3.5" /> Remove Logo
+                  </button>
                 )}
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Sandbox Controls */}
-          <div className="bg-white p-5 rounded-xl border border-rose-100 shadow-xxs space-y-3" id="sandbox-reset-card">
-            <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block flex items-center gap-1">
-              <Database className="h-3.5 w-3.5 text-rose-500 animate-pulse" /> Emergency Sandbox Systems
-            </span>
-            <p className="text-xs text-gray-400 leading-snug">
-              Clear test cash receipts, inventory changes, added supplier credits and restore the original clean default templates in Kathmandu.
-            </p>
-            <button
-              id="btn-hard-reset-data"
-              onClick={handleHardReset}
-              className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold border border-rose-100 rounded-lg text-xs transition duration-200 shadow-xs flex items-center justify-center gap-1.5"
-            >
-              <RefreshCw className="h-3.5 w-3.5" /> Wipe & Restore Seeds
-            </button>
-          </div>
-
-        </div>
-
-        {/* COLUMN RIGHT: CORPORATE CONFIG FORM */}
-        <div className="md:col-span-2 bg-white p-6 rounded-xl border border-gray-150 shadow-xxs" id="business-config-panel">
-          <span className="text-[10px] font-bold text-gray-405 uppercase tracking-wider block mb-4 flex items-center gap-1">
-            <Store className="h-3.5 w-3.5 text-blue-500" /> Corporate Profile Configuration & Invoice Print Settings
-          </span>
-
-          <form onSubmit={handleUpdateProfile} className="space-y-4 text-xs" id="business-profile-form">
             <div className="grid grid-cols-2 gap-3" id="profile-names-grid">
               <div className="space-y-1">
                 <label className="text-gray-600 block">Business Registered Name *</label>
@@ -429,11 +306,115 @@ export const Settings: React.FC = () => {
               <Save className="h-4 w-4" /> {saving ? 'Saving System Changes...' : 'Commit Settings Config'}
             </button>
           </form>
-
         </div>
 
-      </div>
+      <div className="bg-white p-6 rounded-xl border border-gray-150 shadow-xxs space-y-4 animate-fade-in" id="multiple-businesses-panel">
+        <div className="border-b border-gray-100 pb-3">
+          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+            <Store className="h-4 w-4 text-blue-500" /> Multiple Business Profiles
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">Manage separate business entities, ledgers, inventory, and invoices within the same workspace.</p>
+        </div>
 
+        <div className="space-y-3 text-xs" id="profile-management-body">
+          {/* Business 1 */}
+          <div className="p-3 border border-gray-150 rounded-xl bg-gray-50/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center font-black text-xs">
+                1
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-900">{getProfileName('b1')}</h4>
+                <p className="text-[10px] text-gray-400">Primary Business Profile</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {activeBusinessId === 'b1' ? (
+                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 text-[9px] font-extrabold rounded-md uppercase tracking-wider">Active</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => switchBusinessProfile('b1')}
+                  className="px-2.5 py-1 bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 text-[10px] font-bold rounded-lg transition"
+                >
+                  Switch Profile
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Business 2 */}
+          {hasSecondBusiness ? (
+            <div className="p-3 border border-gray-150 rounded-xl bg-gray-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center font-black text-xs">
+                  2
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900">{getProfileName('b2')}</h4>
+                  <p className="text-[10px] text-gray-400">Secondary Business Profile</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {activeBusinessId === 'b2' ? (
+                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 text-[9px] font-extrabold rounded-md uppercase tracking-wider">Active</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => switchBusinessProfile('b2')}
+                    className="px-2.5 py-1 bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 text-[10px] font-bold rounded-lg transition"
+                  >
+                    Switch Profile
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 border border-dashed border-gray-300 rounded-xl bg-gray-50/30 text-center space-y-3">
+              <div className="max-w-md mx-auto space-y-1.5">
+                <h4 className="font-bold text-gray-800 text-xs">Add a Second Business Profile</h4>
+                <p className="text-[10px] text-gray-400">Perfect for managing a separate branch, secondary brand, or independent trading account without having to log out.</p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 max-w-sm mx-auto">
+                <input
+                  type="text"
+                  placeholder="Enter Secondary Business Name..."
+                  value={secName}
+                  onChange={(e) => setSecName(e.target.value)}
+                  className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!secName.trim()) {
+                      alert('Please provide a name for the second business');
+                      return;
+                    }
+                    enableSecondBusiness(secName);
+                    setSecName('');
+                    alert('Second business profile activated successfully! You can switch profiles anytime using the sidebar or profile switcher.');
+                  }}
+                  className="bg-blue-600 text-white font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 text-xs transition duration-150 whitespace-nowrap cursor-pointer"
+                >
+                  ➕ Activate Profile
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
+
+  const getProfileName = (id: 'b1' | 'b2') => {
+    try {
+      const key = id === 'b1' ? 'sb_business_config' : 'sb_business_config_b2';
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        return JSON.parse(stored).name || (id === 'b1' ? 'Primary Business' : 'Secondary Business');
+      }
+    } catch (e) {}
+    return id === 'b1' ? 'Primary Business' : 'Secondary Business';
+  };
