@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Customer, Supplier } from '../types';
+import { Customer, Supplier, Receipt } from '../types';
 import { 
   Users, UserPlus, Phone, MapPin, Hash, Plus, DollarSign, HandCoins, 
-  Search, ShieldAlert, Award, FileSpreadsheet, ArrowLeftRight, CheckCircle, Info, Pencil, Printer, Trash2
+  Search, ShieldAlert, Award, FileSpreadsheet, ArrowLeftRight, CheckCircle, Info, Pencil, Printer, Trash2, ReceiptText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getTodayBS, numberToWords } from '../utils/nepaliCalendar';
@@ -12,11 +12,11 @@ export const CustomerContacts: React.FC = () => {
   const { 
     customers, suppliers, submitCustomer, submitSupplier, 
     setCustomers, setSuppliers, journals, setJournals, currentUserRole,
-    businessConfig, invoices
+    businessConfig, invoices, receipts, setReceipts
   } = useApp();
 
-  // Selected Sibling Tab: 'customers' | 'suppliers' | 'all'
-  const [activeSegment, setActiveSegment] = useState<'customers' | 'suppliers' | 'all'>('customers');
+  // Selected Sibling Tab: 'customers' | 'suppliers' | 'all' | 'receipts'
+  const [activeSegment, setActiveSegment] = useState<'customers' | 'suppliers' | 'all' | 'receipts'>('customers');
   const [settleEntityType, setSettleEntityType] = useState<'customer' | 'supplier'>('customer');
   
   // Search parameters
@@ -28,6 +28,7 @@ export const CustomerContacts: React.FC = () => {
   const [settleAmount, setSettleAmount] = useState<number>(0);
   const [settleMethod, setSettleMethod] = useState<'Cash' | 'Fonepay' | 'Bank Transfer'>('Cash');
   const [settleNotes, setSettleNotes] = useState<string>('Dues installment cleared');
+  const [settleReceiptNo, setSettleReceiptNo] = useState<string>('');
 
   // Customer Add form states
   const [showAddCustModal, setShowAddCustModal] = useState<boolean>(false);
@@ -244,6 +245,26 @@ export const CustomerContacts: React.FC = () => {
       localStorage.setItem('sb_journals', JSON.stringify(newJournals));
 
       toast.success(`Receipt of Rs. ${settleAmount.toLocaleString()} recorded for ${clientObj.name}. Dues reduced to Rs. ${updatedDues.toLocaleString()}.`);
+
+      // 3. Store receipt record
+      if (settleReceiptNo.trim()) {
+        const newReceipt: Receipt = {
+          id: `rec-${Date.now()}`,
+          receiptNo: settleReceiptNo.trim(),
+          entityType: 'customer',
+          entityId: clientObj.id,
+          entityName: clientObj.name,
+          amount: settleAmount,
+          paymentMethod: settleMethod,
+          previousDue: clientObj.outstandingDue,
+          remainingDue: updatedDues,
+          date: adDate,
+          bsDate: bsDateStr,
+          notes: settleNotes || undefined
+        };
+        const updatedReceipts = [newReceipt, ...receipts];
+        setReceipts(updatedReceipts);
+      }
     } else {
       // suppliers settlement
       const supplierObj = suppliers.find(s => s.id === selectedEntityId);
@@ -281,10 +302,31 @@ export const CustomerContacts: React.FC = () => {
       localStorage.setItem('sb_journals', JSON.stringify(newJournals));
 
       toast.success(`Payable of Rs. ${settleAmount.toLocaleString()} cleared to ${supplierObj.name}. Outstanding liability reduced to Rs. ${updatedDues.toLocaleString()}.`);
+
+      // 3. Store receipt record
+      if (settleReceiptNo.trim()) {
+        const newReceipt: Receipt = {
+          id: `rec-${Date.now()}`,
+          receiptNo: settleReceiptNo.trim(),
+          entityType: 'supplier',
+          entityId: supplierObj.id,
+          entityName: supplierObj.name,
+          amount: settleAmount,
+          paymentMethod: settleMethod,
+          previousDue: supplierObj.outstandingDue,
+          remainingDue: updatedDues,
+          date: adDate,
+          bsDate: bsDateStr,
+          notes: settleNotes || undefined
+        };
+        const updatedReceipts = [newReceipt, ...receipts];
+        setReceipts(updatedReceipts);
+      }
     }
 
     setShowSettleModal(false);
     setSettleAmount(0);
+    setSettleReceiptNo('');
   };
 
   // Combine customers and suppliers into a unified parties summary array
@@ -475,6 +517,20 @@ export const CustomerContacts: React.FC = () => {
           >
             All Parties Summary
           </button>
+          <button
+            id="btn-active-segment-receipts"
+            onClick={() => {
+              setActiveSegment('receipts');
+              setQuery('');
+            }}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+              activeSegment === 'receipts' 
+                ? 'bg-blue-600 text-white shadow-xs' 
+                : 'bg-white text-gray-600 border border-gray-100'
+            }`}
+          >
+            <span className="flex items-center gap-1.5"><ReceiptText className="h-3.5 w-3.5" /> Receipt Log</span>
+          </button>
         </div>
       </div>
 
@@ -513,13 +569,15 @@ export const CustomerContacts: React.FC = () => {
                 ? 'Search clients directory by phone tags, addresses, or registration metadata...' 
                 : activeSegment === 'suppliers'
                 ? 'Search agricultural suppliers by coordinator names, phones, or offices...'
+                : activeSegment === 'receipts'
+                ? 'Search receipts by receipt number, party name, or notes...'
                 : 'Search all ledger parties (clients & suppliers) by names, contact channels, or offices...'
             }
             className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 text-xs focus:ring-1 focus:ring-blue-500 outline-none animate-fade-in"
           />
         </div>
 
-        {activeSegment !== 'all' ? (
+        {(activeSegment === 'customers' || activeSegment === 'suppliers') ? (
           <button
             id={activeSegment === 'customers' ? "btn-trigger-add-cust-modal" : "btn-trigger-add-supp-modal"}
             onClick={() => {
@@ -987,6 +1045,71 @@ export const CustomerContacts: React.FC = () => {
         </div>
       )}
 
+      {/* RECEIPTS HISTORY TAB */}
+      {activeSegment === 'receipts' && (
+        <div className="space-y-3" id="receipts-history-section">
+          {receipts.length === 0 ? (
+            <div className="bg-white rounded-xl p-10 text-center border border-gray-100">
+              <ReceiptText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm font-medium">No receipts recorded yet</p>
+              <p className="text-gray-400 text-xs mt-1">When you settle dues and enter a receipt number, it will appear here.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs" id="receipts-history-table">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-500 uppercase text-[10px] tracking-wider">
+                      <th className="px-4 py-3 text-left font-semibold">Receipt No.</th>
+                      <th className="px-4 py-3 text-left font-semibold">Date (BS)</th>
+                      <th className="px-4 py-3 text-left font-semibold">Party</th>
+                      <th className="px-4 py-3 text-left font-semibold">Type</th>
+                      <th className="px-4 py-3 text-right font-semibold">Amount (Rs)</th>
+                      <th className="px-4 py-3 text-left font-semibold">Method</th>
+                      <th className="px-4 py-3 text-right font-semibold">Prev Due</th>
+                      <th className="px-4 py-3 text-right font-semibold">Remaining</th>
+                      <th className="px-4 py-3 text-left font-semibold">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {receipts
+                      .filter(r => {
+                        if (!query) return true;
+                        const q = query.toLowerCase();
+                        return r.receiptNo.toLowerCase().includes(q) || r.entityName.toLowerCase().includes(q) || (r.notes && r.notes.toLowerCase().includes(q));
+                      })
+                      .map((r) => (
+                      <tr key={r.id} className="hover:bg-blue-50/40 transition-colors">
+                        <td className="px-4 py-3 font-bold text-blue-700 font-mono">{r.receiptNo}</td>
+                        <td className="px-4 py-3 text-gray-600">{r.bsDate}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">{r.entityName}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            r.entityType === 'customer' 
+                              ? 'bg-emerald-50 text-emerald-700' 
+                              : 'bg-amber-50 text-amber-700'
+                          }`}>
+                            {r.entityType === 'customer' ? 'Collection' : 'Payout'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold font-mono text-green-700">Rs. {r.amount.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-gray-600">{r.paymentMethod}</td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-500">Rs. {r.previousDue.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right font-mono text-rose-600 font-semibold">Rs. {r.remainingDue.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-gray-400 max-w-[150px] truncate">{r.notes || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-4 py-2 bg-gray-50 text-[10px] text-gray-400 text-right border-t">
+                Total receipts: {receipts.length} &bull; Total collected: Rs. {receipts.filter(r => r.entityType === 'customer').reduce((s,r) => s + r.amount, 0).toLocaleString()} &bull; Total paid out: Rs. {receipts.filter(r => r.entityType === 'supplier').reduce((s,r) => s + r.amount, 0).toLocaleString()}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* MODAL: DUESS SETTLEMENT PAYMENT PROCESSOR */}
       {showSettleModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-settlement">
@@ -1059,6 +1182,18 @@ export const CustomerContacts: React.FC = () => {
                   value={settleNotes}
                   onChange={(e) => setSettleNotes(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-600 block">Receipt No. (as written on paper rasid)</label>
+                <input
+                  type="text"
+                  id="input-settle-receipt-no"
+                  value={settleReceiptNo}
+                  onChange={(e) => setSettleReceiptNo(e.target.value)}
+                  placeholder="e.g. 1234, REC-05, रसिद-१२"
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                 />
               </div>
 

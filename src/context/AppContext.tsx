@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { 
   Product, Customer, Supplier, Expense, Invoice, Purchase, 
-  JournalEntry, BusinessConfig, StockMovement, UserRole 
+  JournalEntry, BusinessConfig, StockMovement, UserRole, Receipt 
 } from '../types';
 import { 
   INITIAL_BUSINESS_CONFIG, INITIAL_PRODUCTS, INITIAL_CUSTOMERS, 
@@ -40,6 +40,8 @@ interface AppContextType {
   setPurchases: React.Dispatch<React.SetStateAction<Purchase[]>>;
   journals: JournalEntry[];
   setJournals: React.Dispatch<React.SetStateAction<JournalEntry[]>>;
+  receipts: Receipt[];
+  setReceipts: React.Dispatch<React.SetStateAction<Receipt[]>>;
   stockMovements: StockMovement[];
   setStockMovements: React.Dispatch<React.SetStateAction<StockMovement[]>>;
   
@@ -97,6 +99,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>('Owner');
   const [notifications, setNotifications] = useState<AlertNotification[]>([]);
@@ -157,6 +160,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const storedInvoices = localStorage.getItem(getPrefixedKey('sb_invoices'));
       const storedPurchases = localStorage.getItem(getPrefixedKey('sb_purchases'));
       const storedJournals = localStorage.getItem(getPrefixedKey('sb_journals'));
+      const storedReceipts = localStorage.getItem(getPrefixedKey('sb_receipts'));
       const storedMovements = localStorage.getItem(getPrefixedKey('sb_stock_movements'));
       const storedNotifications = localStorage.getItem(getPrefixedKey('sb_notifications'));
       const storedRole = localStorage.getItem('sb_role');
@@ -222,6 +226,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setJournals(profileId === 'b1' ? INITIAL_JOURNALS : []);
       }
 
+      if (storedReceipts) {
+        setReceipts(JSON.parse(storedReceipts));
+      } else {
+        setReceipts([]);
+      }
+
       if (storedMovements) {
         setStockMovements(JSON.parse(storedMovements));
       } else {
@@ -257,6 +267,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem(getOldPrefixedKey('sb_purchases'), JSON.stringify(purchases));
     localStorage.setItem(getOldPrefixedKey('sb_journals'), JSON.stringify(journals));
     localStorage.setItem(getOldPrefixedKey('sb_stock_movements'), JSON.stringify(stockMovements));
+    localStorage.setItem(getOldPrefixedKey('sb_receipts'), JSON.stringify(receipts));
     localStorage.setItem(getOldPrefixedKey('sb_notifications'), JSON.stringify(notifications));
 
     // 2. Switch active business ID state
@@ -339,6 +350,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setPurchases(INITIAL_PURCHASES);
     setJournals(INITIAL_JOURNALS);
     setStockMovements([]);
+    setReceipts([]);
     setNotifications([]);
     setCurrentUserRole('Owner');
     setIsAutoSyncEnabledState(false);
@@ -371,7 +383,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => clearTimeout(timer);
   }, [
     businessConfig, products, customers, suppliers,
-    expenses, invoices, purchases, journals, stockMovements
+    expenses, invoices, purchases, journals, stockMovements, receipts
   ]);
 
   const checkSupabaseConnection = async () => {
@@ -398,6 +410,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         [getPrefixedKey('sb_purchases')]: purchases,
         [getPrefixedKey('sb_journals')]: journals,
         [getPrefixedKey('sb_stock_movements')]: stockMovements,
+        [getPrefixedKey('sb_receipts')]: receipts,
         [getPrefixedKey('sb_notifications')]: notifications,
       };
       const res = await pushDataToSupabase(payload);
@@ -430,6 +443,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const bPurchases = res.data[getPrefixedKey('sb_purchases')];
         const bJournals = res.data[getPrefixedKey('sb_journals')];
         const bMovements = res.data[getPrefixedKey('sb_stock_movements')];
+        const bReceipts = res.data[getPrefixedKey('sb_receipts')];
         const bNotifications = res.data[getPrefixedKey('sb_notifications')];
 
         if (bConfig) {
@@ -467,6 +481,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (bMovements) {
           setStockMovements(bMovements);
           localStorage.setItem(getPrefixedKey('sb_stock_movements'), JSON.stringify(bMovements));
+        }
+        if (bReceipts) {
+          setReceipts(bReceipts);
+          localStorage.setItem(getPrefixedKey('sb_receipts'), JSON.stringify(bReceipts));
         }
         if (bNotifications) {
           setNotifications(bNotifications);
@@ -508,6 +526,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         [getPrefixedKey('sb_purchases')]: purchases,
         [getPrefixedKey('sb_journals')]: journals,
         [getPrefixedKey('sb_stock_movements')]: stockMovements,
+        [getPrefixedKey('sb_receipts')]: receipts,
         [getPrefixedKey('sb_notifications')]: notifications,
       };
 
@@ -535,6 +554,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     purchases,
     journals,
     stockMovements,
+    receipts,
     notifications,
   ]);
 
@@ -602,6 +622,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateJournalsAndPersist = (newJournals: JournalEntry[]) => {
     setJournals(newJournals);
     saveToLocalStorage('sb_journals', newJournals);
+  };
+
+  const updateReceiptsAndPersist = (newReceipts: Receipt[]) => {
+    setReceipts(newReceipts);
+    saveToLocalStorage('sb_receipts', newReceipts);
   };
 
   const updateMovementsAndPersist = (newMovements: StockMovement[]) => {
@@ -1189,6 +1214,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setPurchases: updatePurchasesAndPersist,
         journals,
         setJournals: updateJournalsAndPersist,
+        receipts,
+        setReceipts: updateReceiptsAndPersist,
         stockMovements,
         setStockMovements: updateMovementsAndPersist,
         currentUserRole,

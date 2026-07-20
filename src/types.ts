@@ -147,6 +147,21 @@ export interface JournalEntry {
   amount: number;
 }
 
+export interface Receipt {
+  id: string;
+  receiptNo: string; // user-typed receipt number (matches physical receipt)
+  entityType: 'customer' | 'supplier';
+  entityId: string;
+  entityName: string;
+  amount: number;
+  paymentMethod: 'Cash' | 'Fonepay' | 'Bank Transfer';
+  previousDue: number;
+  remainingDue: number;
+  date: string; // AD
+  bsDate: string; // BS
+  notes?: string;
+}
+
 export interface BusinessConfig {
   name: string;
   nepaliName?: string;
