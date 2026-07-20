@@ -387,6 +387,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     expenses, invoices, purchases, journals, stockMovements, receipts
   ]);
 
+  // In-app automated keep-alive ping: runs on mount and every 24h to keep Supabase project active
+  useEffect(() => {
+    if (!hasSupabaseConfig) return;
+    testSupabaseConnection().catch(() => {});
+    const interval = setInterval(() => {
+      testSupabaseConnection().catch(() => {});
+    }, 24 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const checkSupabaseConnection = async () => {
     const result = await testSupabaseConnection();
     setSupabaseStatus(result);
