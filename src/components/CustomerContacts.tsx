@@ -30,6 +30,14 @@ export const CustomerContacts: React.FC = () => {
   const [settleNotes, setSettleNotes] = useState<string>('Dues installment cleared');
   const [settleReceiptNo, setSettleReceiptNo] = useState<string>('');
 
+  // Record Credit (Payable / Credit Bill) modal state
+  const [showAddCreditModal, setShowAddCreditModal] = useState<boolean>(false);
+  const [creditEntityType, setCreditEntityType] = useState<'customer' | 'supplier'>('supplier');
+  const [selectedCreditEntityId, setSelectedCreditEntityId] = useState<string>('');
+  const [creditAmount, setCreditAmount] = useState<number>(0);
+  const [creditRefNo, setCreditRefNo] = useState<string>('');
+  const [creditNotes, setCreditNotes] = useState<string>('');
+
   // Customer Add form states
   const [showAddCustModal, setShowAddCustModal] = useState<boolean>(false);
   const [custName, setCustName] = useState<string>('');
@@ -37,6 +45,7 @@ export const CustomerContacts: React.FC = () => {
   const [custAddr, setCustAddr] = useState<string>('');
   const [custVat, setCustVat] = useState<string>('');
   const [custNotes, setCustNotes] = useState<string>('');
+  const [custOpeningDue, setCustOpeningDue] = useState<number>(0);
 
   // Supplier Add form states
   const [showAddSuppModal, setShowAddSuppModal] = useState<boolean>(false);
@@ -45,6 +54,7 @@ export const CustomerContacts: React.FC = () => {
   const [suppAddr, setSuppAddr] = useState<string>('');
   const [suppVat, setSuppVat] = useState<string>('');
   const [suppPerson, setSuppPerson] = useState<string>('');
+  const [suppOpeningDue, setSuppOpeningDue] = useState<number>(0);
 
   // Edit form states
   const [showEditCustModal, setShowEditCustModal] = useState<boolean>(false);
@@ -102,7 +112,8 @@ export const CustomerContacts: React.FC = () => {
       phone: custPhone,
       address: custAddr || undefined,
       panVat: custVat || undefined,
-      notes: custNotes || undefined
+      notes: custNotes || undefined,
+      openingDue: custOpeningDue || undefined
     });
 
     setCustName('');
@@ -110,6 +121,7 @@ export const CustomerContacts: React.FC = () => {
     setCustAddr('');
     setCustVat('');
     setCustNotes('');
+    setCustOpeningDue(0);
     setShowAddCustModal(false);
   };
 
@@ -123,7 +135,8 @@ export const CustomerContacts: React.FC = () => {
       phone: suppPhone,
       address: suppAddr || undefined,
       panVat: suppVat || undefined,
-      contactPerson: suppPerson || undefined
+      contactPerson: suppPerson || undefined,
+      openingDue: suppOpeningDue || undefined
     });
 
     setSuppName('');
@@ -131,7 +144,98 @@ export const CustomerContacts: React.FC = () => {
     setSuppAddr('');
     setSuppVat('');
     setSuppPerson('');
+    setSuppOpeningDue(0);
     setShowAddSuppModal(false);
+  };
+
+  /**
+   * Handler for recording new Credit / Credit Bill taken from supplier or given to customer
+   */
+  const handleRecordCreditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (creditAmount <= 0) return;
+
+    const adDate = new Date().toISOString().split('T')[0];
+    const bsDateStr = getTodayBS();
+
+    if (creditEntityType === 'supplier') {
+      const suppObj = suppliers.find(s => s.id === selectedCreditEntityId);
+      if (!suppObj) return;
+
+      const updatedDues = suppObj.outstandingDue + creditAmount;
+      const updatedTotalPurchased = suppObj.totalPurchased + creditAmount;
+
+      const updatedSuppliers = suppliers.map(s => {
+        if (s.id === selectedCreditEntityId) {
+          return {
+            ...s,
+            totalPurchased: updatedTotalPurchased,
+            outstandingDue: updatedDues
+          };
+        }
+        return s;
+      });
+      setSuppliers(updatedSuppliers);
+      localStorage.setItem('sb_suppliers', JSON.stringify(updatedSuppliers));
+
+      // Journal entry
+      const newJournals = [...journals];
+      newJournals.unshift({
+        id: `journal-credit-${Date.now()}`,
+        date: adDate,
+        bsDate: bsDateStr,
+        description: `Supplier Credit Purchase / Payable Bill from ${suppObj.name}: ${creditNotes || 'Credit taken'}`,
+        reference: creditRefNo.trim() || `CR-${suppObj.id.slice(-4).toUpperCase()}`,
+        debitAccount: "Purchases / Inventory Assets",
+        creditAccount: "Accounts Payable (Suppliers)",
+        amount: creditAmount
+      });
+      setJournals(newJournals);
+      localStorage.setItem('sb_journals', JSON.stringify(newJournals));
+
+      toast.success(`Credit of Rs. ${creditAmount.toLocaleString()} recorded for ${suppObj.name}. Total payable: Rs. ${updatedDues.toLocaleString()}.`);
+    } else {
+      const clientObj = customers.find(c => c.id === selectedCreditEntityId);
+      if (!clientObj) return;
+
+      const updatedDues = clientObj.outstandingDue + creditAmount;
+      const updatedTotalPurchases = clientObj.totalPurchases + creditAmount;
+
+      const updatedCustomers = customers.map(c => {
+        if (c.id === selectedCreditEntityId) {
+          return {
+            ...c,
+            totalPurchases: updatedTotalPurchases,
+            outstandingDue: updatedDues
+          };
+        }
+        return c;
+      });
+      setCustomers(updatedCustomers);
+      localStorage.setItem('sb_customers', JSON.stringify(updatedCustomers));
+
+      // Journal entry
+      const newJournals = [...journals];
+      newJournals.unshift({
+        id: `journal-credit-${Date.now()}`,
+        date: adDate,
+        bsDate: bsDateStr,
+        description: `Credit Statement Issued to ${clientObj.name}: ${creditNotes || 'Credit given'}`,
+        reference: creditRefNo.trim() || `CR-${clientObj.id.slice(-4).toUpperCase()}`,
+        debitAccount: "Accounts Receivable (Customers)",
+        creditAccount: "Sales Revenue",
+        amount: creditAmount
+      });
+      setJournals(newJournals);
+      localStorage.setItem('sb_journals', JSON.stringify(newJournals));
+
+      toast.success(`Credit of Rs. ${creditAmount.toLocaleString()} recorded for ${clientObj.name}. Total due: Rs. ${updatedDues.toLocaleString()}.`);
+    }
+
+    setShowAddCreditModal(false);
+    setCreditAmount(0);
+    setCreditRefNo('');
+    setCreditNotes('');
   };
 
   // Handle Customer Edit Submit
@@ -727,20 +831,38 @@ export const CustomerContacts: React.FC = () => {
                       <Printer className="h-3.5 w-3.5 text-gray-500" />
                       <span>खाता विवरण (Ledger)</span>
                     </button>
-                    {hasDue && (
+                    <div className="flex items-center gap-1.5">
                       <button
-                        id={`btn-settle-cust-${cust.id}`}
+                        id={`btn-add-credit-cust-${cust.id}`}
                         onClick={() => {
-                          setSelectedEntityId(cust.id);
-                          setSettleEntityType('customer');
-                          setSettleAmount(cust.outstandingDue);
-                          setShowSettleModal(true);
+                          setSelectedCreditEntityId(cust.id);
+                          setCreditEntityType('customer');
+                          setCreditAmount(0);
+                          setCreditRefNo('');
+                          setCreditNotes('');
+                          setShowAddCreditModal(true);
                         }}
-                        className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5 cursor-pointer"
+                        className="py-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                        title="Record Credit Bill Issued to Customer"
                       >
-                        <HandCoins className="h-3.5 w-3.5" /> Settle Credit
+                        <Plus className="h-3.5 w-3.5 text-blue-600" />
+                        <span>+ Add Credit</span>
                       </button>
-                    )}
+                      {hasDue && (
+                        <button
+                          id={`btn-settle-cust-${cust.id}`}
+                          onClick={() => {
+                            setSelectedEntityId(cust.id);
+                            setSettleEntityType('customer');
+                            setSettleAmount(cust.outstandingDue);
+                            setShowSettleModal(true);
+                          }}
+                          className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <HandCoins className="h-3.5 w-3.5" /> Settle Credit
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -860,20 +982,38 @@ export const CustomerContacts: React.FC = () => {
                       <Printer className="h-3.5 w-3.5 text-gray-500" />
                       <span>खाता विवरण (Ledger)</span>
                     </button>
-                    {hasDue && currentUserRole === 'Owner' && (
+                    <div className="flex items-center gap-1.5">
                       <button
-                        id={`btn-settle-supp-${supp.id}`}
+                        id={`btn-add-credit-supp-${supp.id}`}
                         onClick={() => {
-                          setSelectedEntityId(supp.id);
-                          setSettleEntityType('supplier');
-                          setSettleAmount(supp.outstandingDue);
-                          setShowSettleModal(true);
+                          setSelectedCreditEntityId(supp.id);
+                          setCreditEntityType('supplier');
+                          setCreditAmount(0);
+                          setCreditRefNo('');
+                          setCreditNotes('');
+                          setShowAddCreditModal(true);
                         }}
-                        className="py-1.5 px-3 bg-amber-600 hover:bg-amber-700 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5 cursor-pointer"
+                        className="py-1.5 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                        title="Record Credit Bill Taken from Supplier"
                       >
-                        <HandCoins className="h-3.5 w-3.5" /> Post Settlement
+                        <Plus className="h-3.5 w-3.5 text-amber-600" />
+                        <span>+ Record Credit</span>
                       </button>
-                    )}
+                      {hasDue && currentUserRole === 'Owner' && (
+                        <button
+                          id={`btn-settle-supp-${supp.id}`}
+                          onClick={() => {
+                            setSelectedEntityId(supp.id);
+                            setSettleEntityType('supplier');
+                            setSettleAmount(supp.outstandingDue);
+                            setShowSettleModal(true);
+                          }}
+                          className="py-1.5 px-3 bg-amber-600 hover:bg-amber-700 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <HandCoins className="h-3.5 w-3.5" /> Post Settlement
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -1023,20 +1163,42 @@ export const CustomerContacts: React.FC = () => {
                       <Printer className="h-3.5 w-3.5 text-gray-500" />
                       <span>खाता विवरण (Ledger)</span>
                     </button>
-                    {hasDue && (
+                    <div className="flex items-center gap-1.5">
                       <button
-                        id={`btn-settle-${party.partyType}-${party.id}`}
+                        id={`btn-add-credit-party-${party.partyType}-${party.id}`}
                         onClick={() => {
-                          setSelectedEntityId(party.id);
-                          setSettleEntityType(party.partyType);
-                          setSettleAmount(party.outstandingDue);
-                          setShowSettleModal(true);
+                          setSelectedCreditEntityId(party.id);
+                          setCreditEntityType(party.partyType);
+                          setCreditAmount(0);
+                          setCreditRefNo('');
+                          setCreditNotes('');
+                          setShowAddCreditModal(true);
                         }}
-                        className={`py-1.5 px-3 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5 cursor-pointer ${party.settleBtnColorClass}`}
+                        className={`py-1.5 px-2.5 border transition rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer ${
+                          party.partyType === 'customer'
+                            ? 'bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-200'
+                            : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                        }`}
+                        title={`Record Credit ${party.partyType === 'customer' ? 'Issued' : 'Taken'}`}
                       >
-                        <HandCoins className="h-3.5 w-3.5" /> {party.settleBtnText}
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>+ Credit</span>
                       </button>
-                    )}
+                      {hasDue && (
+                        <button
+                          id={`btn-settle-${party.partyType}-${party.id}`}
+                          onClick={() => {
+                            setSelectedEntityId(party.id);
+                            setSettleEntityType(party.partyType);
+                            setSettleAmount(party.outstandingDue);
+                            setShowSettleModal(true);
+                          }}
+                          className={`py-1.5 px-3 active:scale-95 transition rounded-lg text-white font-semibold text-[10px] flex items-center gap-1.5 cursor-pointer ${party.settleBtnColorClass}`}
+                        >
+                          <HandCoins className="h-3.5 w-3.5" /> {party.settleBtnText}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -1268,6 +1430,19 @@ export const CustomerContacts: React.FC = () => {
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="text-gray-650 block">Opening Credit Dues (Rs)</label>
+                <input
+                  type="number"
+                  id="input-direct-cust-opening-due"
+                  min="0"
+                  placeholder="0"
+                  value={custOpeningDue || ''}
+                  onChange={(e) => setCustOpeningDue(parseFloat(e.target.value) || 0)}
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none font-mono text-blue-700 font-bold"
+                />
+              </div>
+
               <button
                 type="submit"
                 id="btn-confirm-save-cust"
@@ -1351,6 +1526,19 @@ export const CustomerContacts: React.FC = () => {
                     className="w-full border border-gray-200 rounded-lg p-2 outline-none font-mono"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-650 block">Opening Credit Payable / Credit Taken (Rs)</label>
+                <input
+                  type="number"
+                  id="input-direct-supp-opening-due"
+                  min="0"
+                  placeholder="0"
+                  value={suppOpeningDue || ''}
+                  onChange={(e) => setSuppOpeningDue(parseFloat(e.target.value) || 0)}
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none font-mono text-amber-700 font-bold"
+                />
               </div>
 
               <button
@@ -1888,6 +2076,91 @@ export const CustomerContacts: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: RECORD CREDIT / TAKE CREDIT BILL */}
+      {showAddCreditModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-record-credit">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border border-gray-150" id="record-credit-inner">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+              <span className="font-semibold text-gray-950 text-xs uppercase tracking-tight">
+                {creditEntityType === 'supplier' ? 'Record Supplier Credit (Payable Taken)' : 'Record Customer Credit (Receivable Given)'}
+              </span>
+              <button 
+                id="btn-close-credit-modal"
+                onClick={() => setShowAddCreditModal(false)} 
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-amber-50/70 p-3 rounded-lg text-xs text-gray-700 border border-amber-200/60" id="credit-dialog-meta">
+              <span className="text-amber-800 font-medium block">Credit Entity Party:</span>
+              <strong className="text-gray-950 block text-xs">
+                {creditEntityType === 'customer' 
+                  ? customers.find(c => c.id === selectedCreditEntityId)?.name 
+                  : suppliers.find(s => s.id === selectedCreditEntityId)?.name}
+              </strong>
+              <span className="text-gray-600 block mt-1">Current Outstanding Balance: <strong className="text-amber-700 font-bold font-mono">
+                Rs. {creditEntityType === 'customer' 
+                  ? customers.find(c => c.id === selectedCreditEntityId)?.outstandingDue.toLocaleString()
+                  : suppliers.find(s => s.id === selectedCreditEntityId)?.outstandingDue.toLocaleString()}
+              </strong></span>
+            </div>
+
+            <form onSubmit={handleRecordCreditSubmit} className="space-y-3.5 text-xs" id="record-credit-form">
+              <div className="space-y-1">
+                <label className="text-gray-700 font-semibold block">
+                  {creditEntityType === 'supplier' ? 'Credit Purchase Amount Owed (Rs) *' : 'Credit Statement Issued Amount (Rs) *'}
+                </label>
+                <input
+                  type="number"
+                  id="input-credit-amt"
+                  required
+                  min="1"
+                  placeholder="e.g. 5000"
+                  value={creditAmount || ''}
+                  onChange={(e) => setCreditAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full border border-gray-200 rounded-lg p-2 font-mono outline-none focus:ring-1 focus:ring-amber-500 font-black text-amber-700 text-sm"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-600 block">Bill / Reference Number</label>
+                <input
+                  type="text"
+                  id="input-credit-ref"
+                  value={creditRefNo}
+                  onChange={(e) => setCreditRefNo(e.target.value)}
+                  placeholder="e.g. BILL-992, CR-001, बिल न."
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-600 block">Particulars / Reason Notes</label>
+                <input
+                  type="text"
+                  id="input-credit-notes"
+                  value={creditNotes}
+                  onChange={(e) => setCreditNotes(e.target.value)}
+                  placeholder="e.g. Purchased 50 units on 30-day credit term"
+                  className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                id="btn-confirm-record-credit"
+                className={`w-full py-2.5 text-white rounded-lg font-bold transition ${
+                  creditEntityType === 'supplier' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {creditEntityType === 'supplier' ? '+ Save Payable Credit Entry' : '+ Save Client Credit Entry'}
+              </button>
+            </form>
           </div>
         </div>
       )}

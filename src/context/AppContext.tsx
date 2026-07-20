@@ -58,8 +58,8 @@ interface AppContextType {
   submitPurchase: (purchase: Omit<Purchase, 'id' | 'date' | 'bsDate'>) => Purchase;
   submitExpense: (expense: Omit<Expense, 'id' | 'date' | 'bsDate'>) => Expense;
   submitProduct: (product: Omit<Product, 'id'>) => Product;
-  submitCustomer: (customer: Omit<Customer, 'id' | 'totalPurchases' | 'totalPaid' | 'outstandingDue'>) => Customer;
-  submitSupplier: (supplier: Omit<Supplier, 'id' | 'totalPurchased' | 'totalPaid' | 'outstandingDue'>) => Supplier;
+  submitCustomer: (customer: Omit<Customer, 'id' | 'totalPurchases' | 'totalPaid' | 'outstandingDue'> & { openingDue?: number }) => Customer;
+  submitSupplier: (supplier: Omit<Supplier, 'id' | 'totalPurchased' | 'totalPaid' | 'outstandingDue'> & { openingDue?: number }) => Supplier;
   adjustStockQuantity: (productId: string, changeQty: number, reason: string) => void;
   resetToDefault: () => void;
 
@@ -1116,34 +1116,74 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   /**
    * Add new Customer Profile safely
    */
-  const submitCustomer = (custBase: Omit<Customer, 'id' | 'totalPurchases' | 'totalPaid' | 'outstandingDue'>) => {
+  const submitCustomer = (custBase: Omit<Customer, 'id' | 'totalPurchases' | 'totalPaid' | 'outstandingDue'> & { openingDue?: number }) => {
     const custId = `cust-${Date.now()}`;
+    const initialDue = Math.max(0, custBase.openingDue || 0);
+    const { openingDue, ...rest } = custBase;
     const completeCustomer: Customer = {
-      ...custBase,
+      ...rest,
       id: custId,
-      totalPurchases: 0,
+      totalPurchases: initialDue,
       totalPaid: 0,
-      outstandingDue: 0,
+      outstandingDue: initialDue,
     };
 
     updateCustomersAndPersist([...customers, completeCustomer]);
+
+    if (initialDue > 0) {
+      const adDate = new Date().toISOString().split('T')[0];
+      const bsDateStr = getTodayBS();
+      const newJournals = [...journals];
+      newJournals.unshift({
+        id: `journal-cust-init-${Date.now()}`,
+        date: adDate,
+        bsDate: bsDateStr,
+        description: `Opening Receivables Credit for Client: ${completeCustomer.name}`,
+        reference: `INIT-${completeCustomer.id.slice(-4).toUpperCase()}`,
+        debitAccount: "Accounts Receivable (Customers)",
+        creditAccount: "Sales Revenue",
+        amount: initialDue
+      });
+      updateJournalsAndPersist(newJournals);
+    }
+
     return completeCustomer;
   };
 
   /**
    * Add new Supplier Profile safely
    */
-  const submitSupplier = (suppBase: Omit<Supplier, 'id' | 'totalPurchased' | 'totalPaid' | 'outstandingDue'>) => {
+  const submitSupplier = (suppBase: Omit<Supplier, 'id' | 'totalPurchased' | 'totalPaid' | 'outstandingDue'> & { openingDue?: number }) => {
     const suppId = `supp-${Date.now()}`;
+    const initialDue = Math.max(0, suppBase.openingDue || 0);
+    const { openingDue, ...rest } = suppBase;
     const completeSupplier: Supplier = {
-      ...suppBase,
+      ...rest,
       id: suppId,
-      totalPurchased: 0,
+      totalPurchased: initialDue,
       totalPaid: 0,
-      outstandingDue: 0,
+      outstandingDue: initialDue,
     };
 
     updateSuppliersAndPersist([...suppliers, completeSupplier]);
+
+    if (initialDue > 0) {
+      const adDate = new Date().toISOString().split('T')[0];
+      const bsDateStr = getTodayBS();
+      const newJournals = [...journals];
+      newJournals.unshift({
+        id: `journal-supp-init-${Date.now()}`,
+        date: adDate,
+        bsDate: bsDateStr,
+        description: `Opening Payable Credit for Supplier: ${completeSupplier.name}`,
+        reference: `INIT-${completeSupplier.id.slice(-4).toUpperCase()}`,
+        debitAccount: "Purchases / Inventory Assets",
+        creditAccount: "Accounts Payable (Suppliers)",
+        amount: initialDue
+      });
+      updateJournalsAndPersist(newJournals);
+    }
+
     return completeSupplier;
   };
 
