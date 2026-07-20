@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
-  Settings as SettingsIcon, Save, Store, Upload, XCircle
+  Settings as SettingsIcon, Save, Store, Upload, XCircle, Trash2, RefreshCw, AlertTriangle 
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -18,10 +18,12 @@ const getProfileName = (id: 'b1' | 'b2'): string => {
 
 export const Settings: React.FC = () => {
   const { 
-    businessConfig, setBusinessConfig, hasSecondBusiness, enableSecondBusiness, activeBusinessId, switchBusinessProfile
+    businessConfig, setBusinessConfig, hasSecondBusiness, enableSecondBusiness, activeBusinessId, switchBusinessProfile, resetToDefault, wipeAllData
   } = useApp();
 
   const [secName, setSecName] = useState('');
+  const [showWipeConfirmModal, setShowWipeConfirmModal] = useState(false);
+  const [showResetDemoConfirmModal, setShowResetDemoConfirmModal] = useState(false);
 
   // Profile forms
   const [name, setName] = useState<string>(businessConfig.name);
@@ -416,6 +418,134 @@ export const Settings: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Danger Zone: System Data Reset & Wipe */}
+      <div className="bg-white p-6 rounded-xl border border-rose-150 shadow-xxs space-y-4 animate-fade-in" id="data-reset-panel">
+        <div className="border-b border-rose-100 pb-3 flex justify-between items-center">
+          <div>
+            <h3 className="text-sm font-bold text-rose-950 flex items-center gap-1.5">
+              <Trash2 className="h-4 w-4 text-rose-600" /> Data Management &amp; System Reset
+            </h3>
+            <p className="text-[10px] text-gray-500 mt-0.5">Wipe workspace data to start completely fresh or reset back to default demo records.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          {/* Wipe All Data */}
+          <div className="p-4 border border-rose-200 bg-rose-50/40 rounded-xl space-y-2 flex flex-col justify-between">
+            <div>
+              <h4 className="font-bold text-rose-900 flex items-center gap-1">
+                <Trash2 className="h-3.5 w-3.5 text-rose-600" /> Wipe All Data (Blank Store)
+              </h4>
+              <p className="text-[10px] text-gray-600 mt-1 leading-relaxed">
+                Clears all products, sales invoices, customer &amp; supplier credit balances, receipts, expenses, and accounting ledgers for the active profile ({getProfileName(activeBusinessId)}).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowWipeConfirmModal(true)}
+              className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs transition active:scale-97 cursor-pointer flex items-center justify-center gap-1 mt-2 shadow-xs"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Wipe Everything &amp; Start Fresh
+            </button>
+          </div>
+
+          {/* Reset Demo Data */}
+          <div className="p-4 border border-amber-200 bg-amber-50/40 rounded-xl space-y-2 flex flex-col justify-between">
+            <div>
+              <h4 className="font-bold text-amber-900 flex items-center gap-1">
+                <RefreshCw className="h-3.5 w-3.5 text-amber-600" /> Reset to Sample Demo Data
+              </h4>
+              <p className="text-[10px] text-gray-600 mt-1 leading-relaxed">
+                Restores default sample product catalog, invoices, and demo records for testing system features.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowResetDemoConfirmModal(true)}
+              className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition active:scale-97 cursor-pointer flex items-center justify-center gap-1 mt-2 shadow-xs"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Reset to Sample Demo Data
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* CONFIRMATION MODAL: WIPE ALL DATA */}
+      {showWipeConfirmModal && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-wipe-confirm">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border border-rose-200" id="wipe-inner">
+            <div className="flex items-center gap-2 text-rose-600 border-b border-rose-100 pb-2">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <h3 className="font-bold text-gray-900 text-xs">Confirm Complete Data Wipe</h3>
+            </div>
+            
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Are you sure you want to <strong>permanently wipe all data</strong> for <span className="font-bold text-gray-900">{getProfileName(activeBusinessId)}</span>?
+              <br /><br />
+              This will erase all inventory products, customers, suppliers, credit balances, sales invoices, receipts, and accounting entries.
+            </p>
+
+            <div className="flex gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setShowWipeConfirmModal(false)}
+                className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  wipeAllData();
+                  setShowWipeConfirmModal(false);
+                  toast.success(`All data for ${getProfileName(activeBusinessId)} has been completely wiped. You have a fresh empty account!`);
+                }}
+                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition cursor-pointer"
+              >
+                Yes, Wipe All Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION MODAL: RESET DEMO DATA */}
+      {showResetDemoConfirmModal && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-xs flex items-center justify-center z-50 p-4" id="modal-reset-demo-confirm">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border border-amber-200" id="reset-demo-inner">
+            <div className="flex items-center gap-2 text-amber-600 border-b border-amber-100 pb-2">
+              <RefreshCw className="h-5 w-5 shrink-0" />
+              <h3 className="font-bold text-gray-900 text-xs">Reset to Sample Demo Records</h3>
+            </div>
+            
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Reset active business profile <span className="font-bold text-gray-900">{getProfileName(activeBusinessId)}</span> back to initial sample stationery demo data?
+            </p>
+
+            <div className="flex gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setShowResetDemoConfirmModal(false)}
+                className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  resetToDefault();
+                  setShowResetDemoConfirmModal(false);
+                  toast.success(`Profile ${getProfileName(activeBusinessId)} reset back to initial sample demo data.`);
+                }}
+                className="flex-1 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition cursor-pointer"
+              >
+                Yes, Reset to Demo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

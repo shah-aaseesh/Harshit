@@ -62,6 +62,7 @@ interface AppContextType {
   submitSupplier: (supplier: Omit<Supplier, 'id' | 'totalPurchased' | 'totalPaid' | 'outstandingDue'> & { openingDue?: number }) => Supplier;
   adjustStockQuantity: (productId: string, changeQty: number, reason: string) => void;
   resetToDefault: () => void;
+  wipeAllData: () => void;
 
   // Supabase Sync additions
   isSupabaseConfigured: boolean;
@@ -1235,6 +1236,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('sb_role', 'Owner');
   };
 
+  /**
+   * Complete wipe of all active business profile data (blank slate)
+   */
+  const wipeAllData = () => {
+    const getPrefixedKey = (k: string) => activeBusinessId === 'b1' ? k : `${k}_b2`;
+
+    setProducts([]);
+    setCustomers([]);
+    setSuppliers([]);
+    setExpenses([]);
+    setInvoices([]);
+    setPurchases([]);
+    setJournals([]);
+    setReceipts([]);
+    setStockMovements([]);
+    setNotifications([]);
+
+    saveToLocalStorage('sb_products', []);
+    saveToLocalStorage('sb_customers', []);
+    saveToLocalStorage('sb_suppliers', []);
+    saveToLocalStorage('sb_expenses', []);
+    saveToLocalStorage('sb_invoices', []);
+    saveToLocalStorage('sb_purchases', []);
+    saveToLocalStorage('sb_journals', []);
+    saveToLocalStorage('sb_receipts', []);
+    saveToLocalStorage('sb_stock_movements', []);
+    saveToLocalStorage('sb_notifications', []);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1272,6 +1302,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         submitSupplier,
         adjustStockQuantity,
         resetToDefault,
+        wipeAllData,
         isSupabaseConfigured: hasSupabaseConfig,
         isAutoSyncEnabled,
         setIsAutoSyncEnabled,
